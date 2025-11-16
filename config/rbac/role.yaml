@@ -85,6 +85,7 @@ rules:
   resources:
   - sbdconfigs
   - sbdremediations
+  - sbdremediationtemplates
   verbs:
   - create
   - delete
@@ -98,6 +99,7 @@ rules:
   resources:
   - sbdconfigs/finalizers
   - sbdremediations/finalizers
+  - sbdremediationtemplates/finalizers
   verbs:
   - update
 - apiGroups:
