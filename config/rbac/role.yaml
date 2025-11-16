@@ -107,6 +107,7 @@ rules:
   resources:
   - sbdconfigs/status
   - sbdremediations/status
+  - sbdremediationtemplates/status
   verbs:
   - get
   - patch

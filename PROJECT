@@ -13,14 +13,13 @@ projectName: sbd-operator
 repo: github.com/medik8s/sbd-operator
 resources:
 - api:
-    crdVersion: v1
-   controller: true
+   crdVersion: v1
+  controller: true
   domain: medik8s.io
   group: medik8s
   kind: SBDConfig
   path: github.com/medik8s/sbd-operator/api/v1alpha1
   version: v1alpha1
-version: "3"
 - api:
     crdVersion: v1
     namespaced: true
@@ -39,3 +38,4 @@ version: "3"
   kind: SBDRemediationTemplate
   path: github.com/medik8s/sbd-operator/api/v1alpha1
   version: v1alpha1
+version: "3"
