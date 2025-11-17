@@ -11,7 +11,7 @@ QUAY_AGENT_IMG ?= $(QUAY_REGISTRY)/$(QUAY_ORG)/$(AGENT_IMG)
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= latest
+VERSION ?= 0.0.1
 TAG ?= latest
 
 # Build information
@@ -489,6 +489,8 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
 GINKGO ?= $(LOCALBIN)/ginkgo
+OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
+OPM ?= $(LOCALBIN)/opm
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.6.0
@@ -499,6 +501,29 @@ ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
 GOLANGCI_LINT_VERSION ?= v2.1.0
 GINKGO_VERSION ?= v2.22.2
+
+# OLM tooling versions (aligned with other operators)
+OPERATOR_SDK_VERSION ?= v1.33.0
+OPM_VERSION ?= v1.36.0
+
+# OLM bundle channels/default (aligned defaults)
+CHANNELS ?= stable
+DEFAULT_CHANNEL ?= stable
+
+# CSV patch helpers
+YQ ?= $(LOCALBIN)/yq
+YQ_VERSION ?= v4.44.1
+# 1x1 transparent PNG
+ICON_BASE64 ?= iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/wwAAgMBgS+0L8sAAAAASUVORK5CYII=
+
+# Derived bundle metadata opts
+ifneq ($(origin CHANNELS), undefined)
+BUNDLE_CHANNELS := --channels=$(CHANNELS)
+endif
+ifneq ($(origin DEFAULT_CHANNEL), undefined)
+BUNDLE_DEFAULT_CHANNEL := --default-channel=$(DEFAULT_CHANNEL)
+endif
+BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
@@ -548,3 +573,87 @@ mv $(1) $(1)-$(3) ;\
 } ;\
 ln -sf $(1)-$(3) $(1)
 endef
+
+##@ OLM Bundle & Catalog
+
+# CSV path for post-generation edits if needed
+CSV ?= ./bundle/manifests/$(OPERATOR_IMG).clusterserviceversion.yaml
+
+.PHONY: bundle
+bundle: manifests operator-sdk kustomize yq ## Generate OLM bundle manifests and metadata, then validate
+	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
+	$(KUSTOMIZE) build config/default | $(OPERATOR_SDK) generate bundle -q --manifests --metadata --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
+	$(MAKE) bundle-update
+	$(MAKE) bundle-validate
+
+.PHONY: bundle-validate
+bundle-validate: operator-sdk ## Validate bundle directory
+	$(OPERATOR_SDK) bundle validate ./bundle --select-optional suite=operatorframework
+
+.PHONY: bundle-build
+bundle-build: bundle ## Build bundle image
+	$(CONTAINER_TOOL) build -f bundle.Dockerfile -t $(QUAY_REGISTRY)/$(QUAY_ORG)/$(OPERATOR_IMG)-bundle:$(VERSION) .
+
+.PHONY: bundle-push
+bundle-push: ## Push bundle image
+	$(CONTAINER_TOOL) push $(QUAY_REGISTRY)/$(QUAY_ORG)/$(OPERATOR_IMG)-bundle:$(VERSION)
+
+.PHONY: catalog-build
+catalog-build: opm ## Build a catalog image (single-bundle index)
+	$(OPM) index add --container-tool $(CONTAINER_TOOL) --tag $(QUAY_REGISTRY)/$(QUAY_ORG)/$(OPERATOR_IMG)-catalog:$(VERSION) --bundles $(QUAY_REGISTRY)/$(QUAY_ORG)/$(OPERATOR_IMG)-bundle:$(VERSION)
+
+.PHONY: catalog-push
+catalog-push: ## Push catalog image
+	$(CONTAINER_TOOL) push $(QUAY_REGISTRY)/$(QUAY_ORG)/$(OPERATOR_IMG)-catalog:$(VERSION)
+
+.PHONY: add-replaces-field
+add-replaces-field: ## Add replaces to CSV for versioned builds
+	@if [ "$(VERSION)" != "latest" ] && [ "$(PREVIOUS_VERSION)" != "$(VERSION)" ] && [ "$(PREVIOUS_VERSION)" != "" ]; then \
+		sed -r -i "/  version: $(VERSION)/ a\  replaces: $(OPERATOR_IMG).v$(PREVIOUS_VERSION)" ${CSV} || true ;\
+	else \
+		echo "Skipping replaces field (VERSION=$(VERSION), PREVIOUS_VERSION=$(PREVIOUS_VERSION))" ;\
+	fi
+
+.PHONY: bundle-reset
+bundle-reset: ## Reset bundle to default version
+	VERSION=0.0.1 $(MAKE) bundle
+
+.PHONY: operator-sdk
+operator-sdk: $(OPERATOR_SDK) ## Download operator-sdk locally if necessary.
+$(OPERATOR_SDK): $(LOCALBIN)
+	@{ \
+	set -e ;\
+	OS=$$(go env GOOS) && ARCH=$$(go env GOARCH) ;\
+	URL="https://github.com/operator-framework/operator-sdk/releases/download/$(OPERATOR_SDK_VERSION)/operator-sdk_$${OS}_$${ARCH}"; \
+	echo "Downloading $$URL"; \
+	curl -sSLo $(OPERATOR_SDK) "$$URL"; \
+	chmod +x $(OPERATOR_SDK); \
+	}
+
+.PHONY: opm
+opm: $(OPM) ## Download opm locally if necessary.
+$(OPM): $(LOCALBIN)
+	@{ \
+	set -e ;\
+	OS=$$(go env GOOS) && ARCH=$$(go env GOARCH) ;\
+	URL="https://github.com/operator-framework/operator-registry/releases/download/$(OPM_VERSION)/$${OS}-$${ARCH}-opm"; \
+	echo "Downloading $$URL"; \
+	curl -sSLo $(OPM) "$$URL"; \
+	chmod +x $(OPM); \
+	}
+
+.PHONY: yq
+yq: $(YQ) ## Download yq locally if necessary.
+$(YQ): $(LOCALBIN)
+	$(call go-install-tool,$(YQ),github.com/mikefarah/yq/v4,$(YQ_VERSION))
+
+.PHONY: bundle-update
+bundle-update: yq ## Patch CSV with image, icon and minKubeVersion
+	@echo "Patching CSV: ${CSV}"
+	@# set container image annotation
+	$(YQ) -i '.metadata.annotations.containerImage = "$(IMG)"' ${CSV}
+	@# ensure icon has data and mediatype
+	$(YQ) -i '.spec.icon[0].base64data = "$(ICON_BASE64)"' ${CSV}
+	$(YQ) -i '.spec.icon[0].mediatype = "image/png"' ${CSV}
+	@# set minimum supported Kubernetes version
+	$(YQ) -i '.spec.minKubeVersion = "1.26.0"' ${CSV}
