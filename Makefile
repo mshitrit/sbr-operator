@@ -410,6 +410,17 @@ docker-push: push-images ## Legacy alias for push-images (deprecated).
 docker-buildx: buildx ## Legacy alias for buildx (deprecated).
 	@echo "⚠️  Warning: 'docker-buildx' is deprecated. Use 'make buildx' instead."
 
+##@ Container (composite)
+
+.PHONY: container-build
+container-build: docker-build bundle-build ## Build operator, agent, and bundle images
+
+.PHONY: container-push
+container-push: docker-push bundle-push catalog-build catalog-push ## Push operator/agent, bundle, and catalog images
+
+.PHONY: container-build-and-push
+container-build-and-push: container-build container-push ## Build and push all images (operator, agent, bundle, catalog)
+
 
 .PHONY: update-manifests
 update-manifests: ## Update all manifests to use current QUAY image references (auto-runs with build-push).
