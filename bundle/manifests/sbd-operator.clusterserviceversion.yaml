@@ -4,7 +4,7 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
-    createdAt: "2025-11-17T11:34:42Z"
+    createdAt: "2025-11-18T13:50:37Z"
     operators.operatorframework.io/builder: operator-sdk-v1.33.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     containerImage: quay.io/medik8s/sbd-operator:latest
@@ -36,6 +36,160 @@ spec:
       mediatype: "image/png"
   install:
     spec:
+      clusterPermissions:
+        - rules:
+            - apiGroups:
+                - authentication.k8s.io
+              resources:
+                - tokenreviews
+              verbs:
+                - create
+            - apiGroups:
+                - authorization.k8s.io
+              resources:
+                - subjectaccessreviews
+              verbs:
+                - create
+            - apiGroups:
+                - ""
+              resources:
+                - events
+              verbs:
+                - create
+                - list
+                - patch
+                - watch
+            - apiGroups:
+                - ""
+              resources:
+                - nodes
+              verbs:
+                - get
+                - list
+                - patch
+                - update
+                - watch
+            - apiGroups:
+                - ""
+              resources:
+                - persistentvolumeclaims
+                - serviceaccounts
+              verbs:
+                - create
+                - delete
+                - get
+                - list
+                - patch
+                - update
+                - watch
+            - apiGroups:
+                - ""
+              resources:
+                - pods
+              verbs:
+                - get
+                - list
+                - watch
+            - apiGroups:
+                - apps
+              resources:
+                - daemonsets
+              verbs:
+                - create
+                - delete
+                - get
+                - list
+                - patch
+                - update
+                - watch
+            - apiGroups:
+                - batch
+              resources:
+                - jobs
+              verbs:
+                - create
+                - delete
+                - get
+                - list
+                - patch
+                - update
+                - watch
+            - apiGroups:
+                - coordination.k8s.io
+              resources:
+                - leases
+              verbs:
+                - create
+                - delete
+                - get
+                - list
+                - patch
+                - update
+                - watch
+            - apiGroups:
+                - medik8s.medik8s.io
+              resources:
+                - sbdconfigs
+                - sbdremediations
+                - sbdremediationtemplates
+              verbs:
+                - create
+                - delete
+                - get
+                - list
+                - patch
+                - update
+                - watch
+            - apiGroups:
+                - medik8s.medik8s.io
+              resources:
+                - sbdconfigs/finalizers
+                - sbdremediations/finalizers
+                - sbdremediationtemplates/finalizers
+              verbs:
+                - update
+            - apiGroups:
+                - medik8s.medik8s.io
+              resources:
+                - sbdconfigs/status
+                - sbdremediations/status
+                - sbdremediationtemplates/status
+              verbs:
+                - get
+                - patch
+                - update
+            - apiGroups:
+                - rbac.authorization.k8s.io
+              resources:
+                - clusterrolebindings
+                - clusterroles
+              verbs:
+                - create
+                - delete
+                - get
+                - list
+                - patch
+                - update
+                - watch
+            - apiGroups:
+                - security.openshift.io
+              resources:
+                - securitycontextconstraints
+              verbs:
+                - get
+                - list
+                - patch
+                - update
+                - watch
+            - apiGroups:
+                - storage.k8s.io
+              resources:
+                - storageclasses
+              verbs:
+                - get
+                - list
+                - watch
+          serviceAccountName: sbd-operator-controller-manager
       deployments:
         - label:
             app.kubernetes.io/managed-by: kustomize
@@ -111,13 +265,47 @@ spec:
                   runAsNonRoot: true
                   seccompProfile:
                     type: RuntimeDefault
-                serviceAccountName: controller-manager
+                serviceAccountName: sbd-operator-controller-manager
                 terminationGracePeriodSeconds: 10
                 volumes:
                   - name: cert
                     secret:
                       defaultMode: 420
                       secretName: webhook-server-certs
+      permissions:
+        - rules:
+            - apiGroups:
+                - ""
+              resources:
+                - configmaps
+              verbs:
+                - get
+                - list
+                - watch
+                - create
+                - update
+                - patch
+                - delete
+            - apiGroups:
+                - coordination.k8s.io
+              resources:
+                - leases
+              verbs:
+                - get
+                - list
+                - watch
+                - create
+                - update
+                - patch
+                - delete
+            - apiGroups:
+                - ""
+              resources:
+                - events
+              verbs:
+                - create
+                - patch
+          serviceAccountName: sbd-operator-controller-manager
     strategy: deployment
   installModes:
     - supported: false
