@@ -4,7 +4,7 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
-    createdAt: "2025-11-18T13:50:37Z"
+    createdAt: "2025-11-19T08:42:53Z"
     operators.operatorframework.io/builder: operator-sdk-v1.33.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     containerImage: quay.io/medik8s/sbd-operator:latest
@@ -216,6 +216,7 @@ spec:
                       - --metrics-bind-address=:8443
                       - --leader-elect
                       - --health-probe-bind-address=:8081
+                      - --enable-webhooks=false
                     command:
                       - /manager
                     env:
@@ -235,10 +236,6 @@ spec:
                       initialDelaySeconds: 15
                       periodSeconds: 20
                     name: manager
-                    ports:
-                      - containerPort: 9443
-                        name: webhook-server
-                        protocol: TCP
                     readinessProbe:
                       httpGet:
                         path: /readyz
@@ -257,21 +254,12 @@ spec:
                       capabilities:
                         drop:
                           - ALL
-                    volumeMounts:
-                      - mountPath: /tmp/k8s-webhook-server/serving-certs
-                        name: cert
-                        readOnly: true
                 securityContext:
                   runAsNonRoot: true
                   seccompProfile:
                     type: RuntimeDefault
                 serviceAccountName: sbd-operator-controller-manager
                 terminationGracePeriodSeconds: 10
-                volumes:
-                  - name: cert
-                    secret:
-                      defaultMode: 420
-                      secretName: webhook-server-certs
       permissions:
         - rules:
             - apiGroups:
@@ -330,25 +318,4 @@ spec:
   provider:
     name: medik8s
   version: 0.0.1
-  webhookdefinitions:
-    - admissionReviewVersions:
-        - v1
-      containerPort: 443
-      deploymentName: sbd-operator-controller-manager
-      failurePolicy: Fail
-      generateName: vsbdconfig.kb.io
-      rules:
-        - apiGroups:
-            - medik8s.medik8s.io
-          apiVersions:
-            - v1alpha1
-          operations:
-            - CREATE
-            - UPDATE
-          resources:
-            - sbdconfigs
-      sideEffects: None
-      targetPort: 9443
-      type: ValidatingAdmissionWebhook
-      webhookPath: /validate-medik8s-medik8s-io-v1alpha1-sbdconfig
   minKubeVersion: 1.26.0
