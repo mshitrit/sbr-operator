@@ -4,55 +4,44 @@ export IMAGE_REGISTRY
 
 # Quay registry configuration - primary image naming system
 OPERATOR_NAME ?= sbd-operator
-AGENT_IMG ?= sbd-agent
+AGENT_NAME ?= sbd-agent
 QUAY_OPERATOR_NAME ?= $(IMAGE_REGISTRY)/$(OPERATOR_NAME)
-QUAY_AGENT_IMG ?= $(IMAGE_REGISTRY)/$(AGENT_IMG)
-
-# IMAGE_TAG_BASE defines the docker.io namespace and part of the image name for remote images.
-# This variable is used to construct full image tags for bundle and catalog images.
-#
-# For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
-# medik8s.io/fence-agents-remediation-bundle:$VERSION and medik8s.io/fence-agents-remediation-catalog:$VERSION.
-
-# BUNDLE_IMG defines the image:tag used for the bundle.
-# You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
-BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-operator-bundle:$(IMAGE_TAG)
-
-# The image tag given to the resulting catalog image (e.g. make catalog-build CATALOG_IMG=example.com/operator-catalog:v0.2.0).
-CATALOG_IMG ?= $(IMAGE_TAG_BASE)-operator-catalog:$(IMAGE_TAG)
-
-# Image URL to use all building/pushing image targets
-IMG ?= $(IMAGE_TAG_BASE)-operator:$(IMAGE_TAG)
-
-# When no version is set, use latest as image tags
-DEFAULT_VERSION := 0.0.1
-ifeq ($(origin VERSION), undefined)
-IMAGE_TAG = latest
-else ifeq ($(VERSION), $(DEFAULT_VERSION))
-IMAGE_TAG = latest
-else
-IMAGE_TAG = v$(VERSION)
-endif
-export IMAGE_TAG
-
+QUAY_AGENT_IMG ?= $(IMAGE_REGISTRY)/$(AGENT_NAME)
 
 # VERSION defines the project version for the bundle.
 # Update this value when you upgrade the version of your project.
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
+DEFAULT_VERSION := 0.0.1
 VERSION ?= $(DEFAULT_VERSION)
 PREVIOUS_VERSION ?= $(DEFAULT_VERSION)
 export VERSION
 
+# When no version is set, use latest as image tags
+ifeq ($(VERSION), $(DEFAULT_VERSION))
+IMAGE_TAG = latest
+else
+IMAGE_TAG = v$(VERSION)
+endif
+export IMAGE_TAG
+# Image URL to use all building/pushing image targets
+IMG ?= $(IMAGE_REGISTRY)/sbd-operator:$(IMAGE_TAG)
+
+# BUNDLE_IMG defines the image:tag used for the bundle.
+# You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
+BUNDLE_IMG ?= $(IMAGE_REGISTRY)/sbd-operator-bundle:$(IMAGE_TAG)
+
+# The image tag given to the resulting catalog image (e.g. make catalog-build CATALOG_IMG=example.com/operator-catalog:v0.2.0).
+CATALOG_IMG ?= $(IMAGE_REGISTRY)/sbd-operator-catalog:$(IMAGE_TAG)
+
+AGENT_IMG ?= $(IMAGE_REGISTRY)/sbd-agent:$(IMAGE_TAG)
 
 # Build information
 BUILD_DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 GIT_DESCRIBE ?= $(shell git describe --tags --dirty 2>/dev/null || echo "unknown")
 
-# Legacy IMG variable for backwards compatibility (maps to operator image)
-IMG ?= $(QUAY_OPERATOR_NAME):$(IMAGE_TAG)
 OPERATOR_SHA=$$(podman inspect $(QUAY_OPERATOR_NAME):$(IMAGE_TAG) --format "{{.ID}}" )
 AGENT_SHA=$$(podman inspect $(QUAY_AGENT_IMG):$(IMAGE_TAG) --format "{{.ID}}" )
 TEST_ARGS ?= ""
@@ -165,9 +154,9 @@ test-prep: build-openshift-installer sync-test-files ## Run smoke tests with bui
 load-images:
 	@echo "Loading images into CRC..."
 	$(CONTAINER_TOOL) save --format docker-archive $(QUAY_OPERATOR_NAME):$(IMAGE_TAG) -o bin/$(OPERATOR_NAME).tar
-	$(CONTAINER_TOOL) save --format docker-archive $(QUAY_AGENT_IMG):$(IMAGE_TAG) -o bin/$(AGENT_IMG).tar
+	$(CONTAINER_TOOL) save --format docker-archive $(QUAY_AGENT_IMG):$(IMAGE_TAG) -o bin/$(AGENT_NAME).tar
 	@eval $$(crc podman-env) && $(CONTAINER_TOOL) load -i bin/$(OPERATOR_NAME).tar
-	@eval $$(crc podman-env) && $(CONTAINER_TOOL) load -i bin/$(AGENT_IMG).tar
+	@eval $$(crc podman-env) && $(CONTAINER_TOOL) load -i bin/$(AGENT_NAME).tar
 
 .PHONY: test-smoke-reload
 test-smoke-reload:
@@ -353,14 +342,13 @@ PLATFORMS ?= linux/arm64,linux/amd64 # Others: linux/s390x,linux/ppc64le
 build-operator-image: manifests generate fmt vet ## Build operator container image.
 	@echo "Building operator image: $(QUAY_OPERATOR_NAME):$(IMAGE_TAG)"
 	@echo "Git version info will be calculated automatically during build"
-	$(CONTAINER_TOOL) build -t $(IMAGE_REGISTRY)/sbd-operator:$(IMAGE_TAG) .
-	$(CONTAINER_TOOL) tag sbd-operator:$(IMAGE_TAG) $(QUAY_OPERATOR_NAME):$(IMAGE_TAG)
+	$(CONTAINER_TOOL) build -t ${IMG} .
+
 .PHONY: build-agent-image
 build-agent-image: manifests generate fmt vet ## Build agent container image.
 	@echo "Building agent image: $(QUAY_AGENT_IMG):$(IMAGE_TAG)"
 	@echo "Git version info will be calculated automatically during build"
-	$(CONTAINER_TOOL) build -f cmd/sbd-agent/Dockerfile -t $(IMAGE_REGISTRY)/sbd-agent:$(IMAGE_TAG) .
-	$(CONTAINER_TOOL) tag sbd-agent:$(IMAGE_TAG) $(QUAY_AGENT_IMG):$(IMAGE_TAG)
+	$(CONTAINER_TOOL) build -f cmd/sbd-agent/Dockerfile -t ${AGENT_IMG} .
 
 .PHONY: build-multiarch-operator-image
 build-multiarch-operator-image: manifests generate fmt vet ## Build multi-platform operator container image.
@@ -391,13 +379,13 @@ build-multiarch-images: build-multiarch-operator-image build-multiarch-agent-ima
 
 .PHONY: push-operator-image
 push-operator-image: ## Push operator container image to registry.
-	@echo "Pushing operator image: $(QUAY_OPERATOR_NAME):$(IMAGE_TAG)"
-	$(CONTAINER_TOOL) push $(QUAY_OPERATOR_NAME):$(IMAGE_TAG)
+	@echo "Pushing operator image: ${IMG}"
+	$(CONTAINER_TOOL) push ${IMG}
 
 .PHONY: push-agent-image
 push-agent-image: ## Push agent container image to registry.
-	@echo "Pushing agent image: $(QUAY_AGENT_IMG):$(IMAGE_TAG)"
-	$(CONTAINER_TOOL) push $(QUAY_AGENT_IMG):$(IMAGE_TAG)
+	@echo "Pushing agent image: ${AGENT_IMG}"
+	$(CONTAINER_TOOL) push ${AGENT_IMG}
 
 .PHONY: push-images
 push-images: push-operator-image push-agent-image ## Push both operator and agent container images to registry.
@@ -634,19 +622,22 @@ bundle-validate: operator-sdk ## Validate bundle directory
 
 .PHONY: bundle-build
 bundle-build: bundle ## Build bundle image
-	$(CONTAINER_TOOL) build -f bundle.Dockerfile -t $(IMAGE_REGISTRY)/$(OPERATOR_NAME)-bundle:$(VERSION) .
+	@echo "Building bundle image: ${BUNDLE_IMG}"
+	$(CONTAINER_TOOL) build -f bundle.Dockerfile -t ${BUNDLE_IMG} .
 
 .PHONY: bundle-push
 bundle-push: ## Push bundle image
-	$(CONTAINER_TOOL) push $(IMAGE_REGISTRY)/$(OPERATOR_NAME)-bundle:$(VERSION)
+	@echo "Pushing bundle image: ${BUNDLE_IMG}"
+	$(CONTAINER_TOOL) push ${BUNDLE_IMG}
 
 .PHONY: catalog-build
 catalog-build: opm ## Build a catalog image (single-bundle index)
-	$(OPM) index add --container-tool $(CONTAINER_TOOL) --tag $(IMAGE_REGISTRY)/$(OPERATOR_NAME)-catalog:$(VERSION) --bundles $(IMAGE_REGISTRY)/$(OPERATOR_NAME)-bundle:$(VERSION)
+	@echo "Building catalog image: ${CATALOG_IMG}"
+	$(OPM) index add --container-tool $(CONTAINER_TOOL) --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMG)
 
 .PHONY: catalog-push
 catalog-push: ## Push catalog image
-	$(CONTAINER_TOOL) push $(IMAGE_REGISTRY)/$(OPERATOR_NAME)-catalog:$(VERSION)
+	$(CONTAINER_TOOL) push ${CATALOG_IMG}
 
 .PHONY: add-replaces-field
 add-replaces-field: ## Add replaces to CSV for versioned builds
