@@ -1,14 +1,12 @@
-# Quay registry configuration - primary image naming system
-QUAY_REGISTRY ?= quay.io
-QUAY_ORG ?= medik8s
-OPERATOR_NAME ?= sbd-operator
-AGENT_IMG ?= sbd-agent
-QUAY_OPERATOR_NAME ?= $(QUAY_REGISTRY)/$(QUAY_ORG)/$(OPERATOR_NAME)
-QUAY_AGENT_IMG ?= $(QUAY_REGISTRY)/$(QUAY_ORG)/$(AGENT_IMG)
-
 # IMAGE_REGISTRY used to indicate the registery/group for the operator, bundle and catalog
 IMAGE_REGISTRY ?= quay.io/medik8s
 export IMAGE_REGISTRY
+
+# Quay registry configuration - primary image naming system
+OPERATOR_NAME ?= sbd-operator
+AGENT_IMG ?= sbd-agent
+QUAY_OPERATOR_NAME ?= $(IMAGE_REGISTRY)/$(OPERATOR_NAME)
+QUAY_AGENT_IMG ?= $(IMAGE_REGISTRY)/$(AGENT_IMG)
 
 # IMAGE_TAG_BASE defines the docker.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
@@ -346,7 +344,7 @@ clean-webhook-certs: ## Clean up generated webhook certificates.
 # Primary build targets (Quay-first approach)
 # Use these for standard development and CI/CD workflows
 # Example: make build-images VERSION=v1.0.0
-# Example: make build-push QUAY_REGISTRY=my-registry.io QUAY_ORG=myorg
+# Example: make build-push IMAGE_REGISTRY=my-registry.io/myorg
 
 # PLATFORMS defines the target platforms for multi-platform builds
 PLATFORMS ?= linux/arm64,linux/amd64 # Others: linux/s390x,linux/ppc64le
@@ -355,14 +353,13 @@ PLATFORMS ?= linux/arm64,linux/amd64 # Others: linux/s390x,linux/ppc64le
 build-operator-image: manifests generate fmt vet ## Build operator container image.
 	@echo "Building operator image: $(QUAY_OPERATOR_NAME):$(IMAGE_TAG)"
 	@echo "Git version info will be calculated automatically during build"
-	$(CONTAINER_TOOL) build -t sbd-operator:$(IMAGE_TAG) .
+	$(CONTAINER_TOOL) build -t $(IMAGE_REGISTRY)/sbd-operator:$(IMAGE_TAG) .
 	$(CONTAINER_TOOL) tag sbd-operator:$(IMAGE_TAG) $(QUAY_OPERATOR_NAME):$(IMAGE_TAG)
-
-.PHONY: build-agent-image  
+.PHONY: build-agent-image
 build-agent-image: manifests generate fmt vet ## Build agent container image.
 	@echo "Building agent image: $(QUAY_AGENT_IMG):$(IMAGE_TAG)"
 	@echo "Git version info will be calculated automatically during build"
-	$(CONTAINER_TOOL) build -f cmd/sbd-agent/Dockerfile -t sbd-agent:$(IMAGE_TAG) .
+	$(CONTAINER_TOOL) build -f cmd/sbd-agent/Dockerfile -t $(IMAGE_REGISTRY)/sbd-agent:$(IMAGE_TAG) .
 	$(CONTAINER_TOOL) tag sbd-agent:$(IMAGE_TAG) $(QUAY_AGENT_IMG):$(IMAGE_TAG)
 
 .PHONY: build-multiarch-operator-image
@@ -637,19 +634,19 @@ bundle-validate: operator-sdk ## Validate bundle directory
 
 .PHONY: bundle-build
 bundle-build: bundle ## Build bundle image
-	$(CONTAINER_TOOL) build -f bundle.Dockerfile -t $(QUAY_REGISTRY)/$(QUAY_ORG)/$(OPERATOR_NAME)-bundle:$(VERSION) .
+	$(CONTAINER_TOOL) build -f bundle.Dockerfile -t $(IMAGE_REGISTRY)/$(OPERATOR_NAME)-bundle:$(VERSION) .
 
 .PHONY: bundle-push
 bundle-push: ## Push bundle image
-	$(CONTAINER_TOOL) push $(QUAY_REGISTRY)/$(QUAY_ORG)/$(OPERATOR_NAME)-bundle:$(VERSION)
+	$(CONTAINER_TOOL) push $(IMAGE_REGISTRY)/$(OPERATOR_NAME)-bundle:$(VERSION)
 
 .PHONY: catalog-build
 catalog-build: opm ## Build a catalog image (single-bundle index)
-	$(OPM) index add --container-tool $(CONTAINER_TOOL) --tag $(QUAY_REGISTRY)/$(QUAY_ORG)/$(OPERATOR_NAME)-catalog:$(VERSION) --bundles $(QUAY_REGISTRY)/$(QUAY_ORG)/$(OPERATOR_NAME)-bundle:$(VERSION)
+	$(OPM) index add --container-tool $(CONTAINER_TOOL) --tag $(IMAGE_REGISTRY)/$(OPERATOR_NAME)-catalog:$(VERSION) --bundles $(IMAGE_REGISTRY)/$(OPERATOR_NAME)-bundle:$(VERSION)
 
 .PHONY: catalog-push
 catalog-push: ## Push catalog image
-	$(CONTAINER_TOOL) push $(QUAY_REGISTRY)/$(QUAY_ORG)/$(OPERATOR_NAME)-catalog:$(VERSION)
+	$(CONTAINER_TOOL) push $(IMAGE_REGISTRY)/$(OPERATOR_NAME)-catalog:$(VERSION)
 
 .PHONY: add-replaces-field
 add-replaces-field: ## Add replaces to CSV for versioned builds
