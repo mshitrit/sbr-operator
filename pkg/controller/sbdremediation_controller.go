@@ -171,6 +171,7 @@ func (r *SBDRemediationReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		"request", req.NamespacedName,
 		"controller", "SBDRemediation",
 	)
+	logger.Info("Dev Version 1")
 
 	// Initialize retry configurations if not already done
 	if r.statusRetryConfig.MaxRetries == 0 {
