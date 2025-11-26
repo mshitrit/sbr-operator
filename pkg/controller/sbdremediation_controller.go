@@ -375,8 +375,8 @@ func (r *SBDRemediationReconciler) markNodeAsUnschedulable(ctx context.Context, 
 	return nil
 }
 
-// uncordonNode marks the node as schedulable again by clearing spec.unschedulable
-func (r *SBDRemediationReconciler) uncordonNode(ctx context.Context, nodeName string) error {
+// markNodeAsSchedulable marks the node as schedulable again by clearing spec.unschedulable
+func (r *SBDRemediationReconciler) markNodeAsSchedulable(ctx context.Context, nodeName string) error {
 	node := &corev1.Node{}
 	if err := r.Get(ctx, types.NamespacedName{Name: nodeName}, node); err != nil {
 		return fmt.Errorf("failed to get node %s: %w", nodeName, err)
@@ -474,7 +474,7 @@ func (r *SBDRemediationReconciler) clearFenceSlotForNode(
 func (r *SBDRemediationReconciler) handleDeletion(
 	ctx context.Context, sbdRemediation *medik8sv1alpha1.SBDRemediation, logger logr.Logger) (ctrl.Result, error) {
 	// First: uncordon the node so it can accept workloads again
-	if err := r.uncordonNode(ctx, sbdRemediation.Spec.NodeName); err != nil {
+	if err := r.markNodeAsSchedulable(ctx, sbdRemediation.Spec.NodeName); err != nil {
 		logger.Error(err, "Failed to mark node schedulable during remediation deletion",
 			"node", sbdRemediation.Spec.NodeName)
 		return ctrl.Result{}, err
