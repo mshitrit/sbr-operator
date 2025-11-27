@@ -39,6 +39,8 @@ import (
 	// Kubernetes imports for SBDRemediation CR watching
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -64,7 +66,7 @@ import (
 // The agent needs to read SBDConfig for configuration and process SBDRemediation CRs for fencing operations
 // +kubebuilder:rbac:groups=medik8s.medik8s.io,resources=sbdconfigs,verbs=get;list;watch
 // +kubebuilder:rbac:groups=medik8s.medik8s.io,resources=sbdconfigs/status,verbs=get
-// +kubebuilder:rbac:groups=medik8s.medik8s.io,resources=sbdremediations,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=medik8s.medik8s.io,resources=sbdremediations,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=medik8s.medik8s.io,resources=sbdremediations/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list
@@ -1270,8 +1272,89 @@ func (s *SBDAgent) peerMonitorLoop() {
 			// Log cluster status periodically
 			healthyPeers := s.peerMonitor.GetHealthyPeerCount()
 			logger.Info("Cluster status", "healthyPeers", healthyPeers)
+
+			// After liveness check, trigger remediation for unhealthy peers
+			for nodeID, peer := range s.peerMonitor.GetPeerStatus() {
+				// Skip healthy peers and ourselves
+				if peer.IsHealthy || nodeID == s.nodeID {
+					continue
+				}
+				// Resolve node name
+				nodeName, ok := s.resolveNodeName(nodeID)
+				if !ok || nodeName == "" {
+					logger.V(1).Info("Skipping remediation - unable to resolve node name", "peerNodeID", nodeID)
+					continue
+				}
+				// Ensure remediation exists
+				if err := s.ensureRemediationExists(s.ctx, nodeName); err != nil {
+					logger.Error(err, "Failed to ensure SBDRemediation for unhealthy peer", "peerNodeID", nodeID, "peerNodeName", nodeName)
+				} else {
+					logger.Info("Ensured SBDRemediation for unhealthy peer", "peerNodeID", nodeID, "peerNodeName", nodeName)
+				}
+			}
 		}
 	}
+}
+
+// resolveNodeName maps a node ID to a node name using the NodeManager.
+func (s *SBDAgent) resolveNodeName(nodeID uint16) (string, bool) {
+	if s.nodeManager == nil {
+		return "", false
+	}
+	// Best-effort refresh to get the newest map
+	_ = s.nodeManager.ReloadFromDevice()
+	if name, ok := s.nodeManager.GetNodeForNodeID(nodeID); ok {
+		return name, true
+	}
+	return "", false
+}
+
+// ensureRemediationExists creates a SBDRemediation for the node if one does not already exist.
+func (s *SBDAgent) ensureRemediationExists(ctx context.Context, nodeName string) error {
+	ns := os.Getenv("POD_NAMESPACE")
+	if ns == "" {
+		return fmt.Errorf("POD_NAMESPACE is empty; cannot create SBDRemediation")
+	}
+
+	name := fmt.Sprintf("sbdremediation-%s", nodeName)
+
+	var existing v1alpha1.SBDRemediation
+	if err := s.k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, &existing); err == nil {
+		// Already exists
+		return nil
+	} else if !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to check existing SBDRemediation %s/%s: %w", ns, name, err)
+	}
+
+	newRem := &v1alpha1.SBDRemediation{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ns,
+			Name:      name,
+		},
+		Spec: v1alpha1.SBDRemediationSpec{
+			NodeName: nodeName,
+			Reason:   v1alpha1.SBDRemediationReasonHeartbeatTimeout,
+		},
+	}
+
+	if err := s.k8sClient.Create(ctx, newRem); err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to create SBDRemediation for node %s: %w", nodeName, err)
+	}
+
+	if s.recorder != nil && s.recorderObject != nil {
+		s.recorder.Eventf(
+			s.recorderObject,
+			"Normal",
+			"PeerRemediationCreated",
+			"Created SBDRemediation %s/%s for node %s",
+			newRem.Namespace, newRem.Name, nodeName,
+		)
+	}
+
+	return nil
 }
 
 // validateSBDDevice checks if the SBD device is accessible
