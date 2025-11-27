@@ -1274,22 +1274,22 @@ func (s *SBDAgent) peerMonitorLoop() {
 			logger.Info("Cluster status", "healthyPeers", healthyPeers)
 
 			// After liveness check, trigger remediation for unhealthy peers
-			for nodeID, peer := range s.peerMonitor.GetPeerStatus() {
+			for _, peer := range s.peerMonitor.GetPeerStatus() {
 				// Skip healthy peers and ourselves
-				if peer.IsHealthy || nodeID == s.nodeID {
+				if peer.IsHealthy || peer.NodeID == s.nodeID {
 					continue
 				}
 				// Resolve node name
-				nodeName, ok := s.resolveNodeName(nodeID)
-				if !ok || nodeName == "" {
+				peerNodeName, ok := s.resolveNodeName(peer.NodeID)
+				if !ok || peerNodeName == "" {
 					logger.V(1).Info("Skipping remediation - unable to resolve node name", "peerNodeID", nodeID)
 					continue
 				}
 				// Ensure remediation exists
-				if err := s.ensureRemediationExists(s.ctx, nodeName); err != nil {
-					logger.Error(err, "Failed to ensure SBDRemediation for unhealthy peer", "peerNodeID", nodeID, "peerNodeName", nodeName)
+				if err := s.ensureRemediationExists(s.ctx, peerNodeName); err != nil {
+					logger.Error(err, "Failed to ensure SBDRemediation for unhealthy peer", "peerNodeID", nodeID, "peerNodeName", peerNodeName)
 				} else {
-					logger.Info("Ensured SBDRemediation for unhealthy peer", "peerNodeID", nodeID, "peerNodeName", nodeName)
+					logger.Info("Ensured SBDRemediation for unhealthy peer", "peerNodeID", nodeID, "peerNodeName", peerNodeName)
 				}
 			}
 		}
@@ -1316,6 +1316,20 @@ func (s *SBDAgent) ensureRemediationExists(ctx context.Context, nodeName string)
 		return fmt.Errorf("POD_NAMESPACE is empty; cannot create SBDRemediation")
 	}
 
+	// Enforce global singleton for SBD-agent remediations (across ALL nodes)
+	var all v1alpha1.SBDRemediationList
+	if err := s.k8sClient.List(ctx, &all, client.InNamespace(ns)); err != nil {
+		return fmt.Errorf("failed to list SBDRemediations: %w", err)
+	}
+	for i := range all.Items {
+		if all.Items[i].Annotations != nil {
+			if _, ok := all.Items[i].Annotations[controller.SBDAgentAnnotationKey]; ok {
+				// Some SBD-agent remediation already exists → do not create another
+				return nil
+			}
+		}
+	}
+
 	name := fmt.Sprintf("sbdremediation-%s", nodeName)
 
 	var existing v1alpha1.SBDRemediation
@@ -1330,6 +1344,9 @@ func (s *SBDAgent) ensureRemediationExists(ctx context.Context, nodeName string)
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ns,
 			Name:      name,
+			Annotations: map[string]string{
+				controller.SBDAgentAnnotationKey: fmt.Sprintf("%s-%d-%d", s.nodeName, s.nodeID, time.Now().UnixNano()),
+			},
 		},
 		Spec: v1alpha1.SBDRemediationSpec{
 			NodeName: nodeName,
@@ -1342,16 +1359,6 @@ func (s *SBDAgent) ensureRemediationExists(ctx context.Context, nodeName string)
 			return nil
 		}
 		return fmt.Errorf("failed to create SBDRemediation for node %s: %w", nodeName, err)
-	}
-
-	if s.recorder != nil && s.recorderObject != nil {
-		s.recorder.Eventf(
-			s.recorderObject,
-			"Normal",
-			"PeerRemediationCreated",
-			"Created SBDRemediation %s/%s for node %s",
-			newRem.Namespace, newRem.Name, nodeName,
-		)
 	}
 
 	return nil
