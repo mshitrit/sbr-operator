@@ -135,6 +135,10 @@ const (
 	FileLockTimeout = 5 * time.Second
 	// FileLockRetryInterval is the interval between file lock acquisition attempts
 	FileLockRetryInterval = 100 * time.Millisecond
+
+	// DefaultMinMissedHeartbeatsForRemediation gates when peers create a remediation.
+	// Default equals MaxConsecutiveFailures.
+	DefaultMinMissedHeartbeatsForRemediation = MaxConsecutiveFailures
 )
 
 // Global logger instance
@@ -1279,17 +1283,26 @@ func (s *SBDAgent) peerMonitorLoop() {
 				if peer.IsHealthy || peer.NodeID == s.nodeID {
 					continue
 				}
+				// Require a minimum number of missed heartbeats before creating a remediation
+				missed := int(time.Since(peer.LastSeen) / s.heartbeatInterval)
+				if missed < DefaultMinMissedHeartbeatsForRemediation {
+					logger.V(1).Info("Peer unhealthy but below remediation threshold",
+						"peerNodeID", peer.NodeID,
+						"missedHeartbeats", missed,
+						"threshold", DefaultMinMissedHeartbeatsForRemediation)
+					continue
+				}
 				// Resolve node name
 				peerNodeName, ok := s.resolveNodeName(peer.NodeID)
 				if !ok || peerNodeName == "" {
-					logger.V(1).Info("Skipping remediation - unable to resolve node name", "peerNodeID", nodeID)
+					logger.V(1).Info("Skipping remediation - unable to resolve node name", "peerNodeID", peer.NodeID)
 					continue
 				}
 				// Ensure remediation exists
 				if err := s.ensureRemediationExists(s.ctx, peerNodeName); err != nil {
-					logger.Error(err, "Failed to ensure SBDRemediation for unhealthy peer", "peerNodeID", nodeID, "peerNodeName", peerNodeName)
+					logger.Error(err, "Failed to ensure SBDRemediation for unhealthy peer", "peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
 				} else {
-					logger.Info("Ensured SBDRemediation for unhealthy peer", "peerNodeID", nodeID, "peerNodeName", peerNodeName)
+					logger.Info("Ensured SBDRemediation for unhealthy peer", "peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
 				}
 			}
 		}
