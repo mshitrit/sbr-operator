@@ -126,7 +126,7 @@ const (
 	CriticalRetryBackoffFactor = 2.0
 
 	// MaxConsecutiveFailures is the maximum number of consecutive failures before triggering self-fence
-	MaxConsecutiveFailures = 5
+	MaxConsecutiveFailures = 7
 	// FailureCountResetInterval is the interval after which failure counts are reset
 	FailureCountResetInterval = 10 * time.Minute
 
@@ -138,7 +138,7 @@ const (
 
 	// DefaultMinMissedHeartbeatsForRemediation gates when peers create a remediation.
 	// Default equals MaxConsecutiveFailures.
-	DefaultMinMissedHeartbeatsForRemediation = MaxConsecutiveFailures
+	DefaultMinMissedHeartbeatsForRemediation = MaxConsecutiveFailures - 2
 )
 
 // Global logger instance
