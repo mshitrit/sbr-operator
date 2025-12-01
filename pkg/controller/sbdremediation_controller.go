@@ -578,7 +578,9 @@ func (r *SBDRemediationReconciler) handleFencingSuccess(
 		"targetNode", remediation.Spec.NodeName)
 
 	// Best-effort cleanup of SBD-agent created remediations for this node after OOS taint has been applied
-	_ = r.cleanupSBDAgentRemediations(ctx, remediation.Namespace, remediation.Spec.NodeName, logger)
+	if err := r.cleanupSBDAgentRemediations(ctx, remediation.Namespace, remediation.Spec.NodeName, logger); err != nil {
+		logger.Error(err, "Failed to clean SBD Agent Remediation")
+	}
 
 	// Update multiple conditions for success state
 	if err := r.updateRemediationCondition(ctx, remediation, medik8sv1alpha1.SBDRemediationConditionFencingInProgress, metav1.ConditionFalse, ReasonCompleted, "Fencing completed", logger); err != nil {
