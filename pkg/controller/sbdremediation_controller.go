@@ -577,11 +577,6 @@ func (r *SBDRemediationReconciler) handleFencingSuccess(
 	logger.Info("Fencing operation completed successfully",
 		"targetNode", remediation.Spec.NodeName)
 
-	// Best-effort cleanup of SBD-agent created remediations for this node after OOS taint has been applied
-	if err := r.cleanupSBDAgentRemediations(ctx, remediation.Namespace, remediation.Spec.NodeName, logger); err != nil {
-		logger.Error(err, "Failed to clean SBD Agent Remediation")
-	}
-
 	// Update multiple conditions for success state
 	if err := r.updateRemediationCondition(ctx, remediation, medik8sv1alpha1.SBDRemediationConditionFencingInProgress, metav1.ConditionFalse, ReasonCompleted, "Fencing completed", logger); err != nil {
 		logger.Error(err, "Failed to update fencing in progress condition")
@@ -606,33 +601,6 @@ func (r *SBDRemediationReconciler) handleFencingSuccess(
 	logger.Info("Cleared fencing operation",
 		"targetNode", remediation.Spec.NodeName)
 
-}
-
-// cleanupSBDAgentRemediations deletes SBD-agent-created remediations for the given node (best-effort).
-func (r *SBDRemediationReconciler) cleanupSBDAgentRemediations(
-	ctx context.Context, namespace, nodeName string, logger logr.Logger,
-) error {
-	var list medik8sv1alpha1.SBDRemediationList
-	if err := r.List(ctx, &list, client.InNamespace(namespace)); err != nil {
-		return fmt.Errorf("failed to list SBDRemediations in %s: %w", namespace, err)
-	}
-	for i := range list.Items {
-		item := &list.Items[i]
-		if item.Spec.NodeName != nodeName {
-			continue
-		}
-		if item.Annotations == nil {
-			continue
-		}
-		if _, ok := item.Annotations[SBDAgentAnnotationKey]; !ok {
-			continue
-		}
-		if err := r.Delete(ctx, item); err != nil && !apierrors.IsNotFound(err) {
-			return fmt.Errorf("failed to delete SBDRemediation %s/%s: %w", item.Namespace, item.Name, err)
-		}
-		logger.V(1).Info("Deleted SBD-agent remediation after placing OOS taint", "name", item.Name, "node", nodeName)
-	}
-	return nil
 }
 
 // ensureOutOfServiceTaint adds the OutOfService taint to the given node if not already present

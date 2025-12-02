@@ -1278,32 +1278,46 @@ func (s *SBDAgent) peerMonitorLoop() {
 			healthyPeers := s.peerMonitor.GetHealthyPeerCount()
 			logger.Info("Cluster status", "healthyPeers", healthyPeers)
 
-			// After liveness check, trigger remediation for unhealthy peers
+			// First, delete SBD-agent remediation for peers that are now healthy (recovered)
 			for _, peer := range s.peerMonitor.GetPeerStatus() {
-				// Skip healthy peers and ourselves
-				if peer.IsHealthy || peer.NodeID == s.nodeID {
+				// Skip ourselves
+				if peer.NodeID == s.nodeID {
 					continue
 				}
-				// Require a minimum number of missed heartbeats before creating a remediation
-				missed := int(time.Since(peer.LastSeen) / s.heartbeatInterval)
-				if missed < DefaultMinMissedHeartbeatsForRemediation {
-					logger.V(1).Info("Peer unhealthy but below remediation threshold",
-						"peerNodeID", peer.NodeID,
-						"missedHeartbeats", missed,
-						"threshold", DefaultMinMissedHeartbeatsForRemediation)
-					continue
-				}
+
 				// Resolve node name
 				peerNodeName, ok := s.resolveNodeName(peer.NodeID)
 				if !ok || peerNodeName == "" {
-					logger.V(1).Info("Skipping remediation - unable to resolve node name", "peerNodeID", peer.NodeID)
+					logger.V(1).Info("Skipping peer check - unable to resolve node name", "peerNodeID", peer.NodeID)
 					continue
 				}
-				// Ensure remediation exists
-				if err := s.ensureRemediationExists(s.ctx, peerNodeName, logger); err != nil {
-					logger.Error(err, "Failed to ensure SBDRemediation for unhealthy peer", "peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
+
+				// Only act on recovered peers
+				if !peer.IsHealthy {
+					// Require a minimum number of missed heartbeats before creating a remediation
+					missed := int(time.Since(peer.LastSeen) / s.heartbeatInterval)
+					if missed < DefaultMinMissedHeartbeatsForRemediation {
+						logger.V(1).Info("Peer unhealthy but below remediation threshold",
+							"peerNodeID", peer.NodeID,
+							"missedHeartbeats", missed,
+							"threshold", DefaultMinMissedHeartbeatsForRemediation)
+						continue
+					}
+					// Ensure remediation exists
+					if err := s.ensureRemediationExists(s.ctx, peerNodeName, logger); err != nil {
+						logger.Error(err, "Failed to ensure SBDRemediation for unhealthy peer", "peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
+					} else {
+						logger.Info("Ensured SBDRemediation for unhealthy peer", "peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
+					}
 				} else {
-					logger.Info("Ensured SBDRemediation for unhealthy peer", "peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
+					// Best-effort delete of SBD-agent remediation for this node (idempotent)
+					if err := s.deleteSBDAgentRemediationIfExists(s.ctx, peerNodeName); err != nil {
+						logger.Error(err, "Failed to delete SBD-agent remediation for recovered peer",
+							"peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
+					} else {
+						logger.Info("Deleted SBD-agent remediation for recovered peer",
+							"peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
+					}
 				}
 			}
 		}
@@ -1376,6 +1390,41 @@ func (s *SBDAgent) ensureRemediationExists(ctx context.Context, nodeName string,
 		return fmt.Errorf("failed to create SBDRemediation for node %s: %w", nodeName, err)
 	}
 	logger.Info("SBD Agent Remediation created", "remediation name", newRem.Name)
+	return nil
+}
+
+// deleteSBDAgentRemediationIfExists deletes the SBD-agent-created remediation for a node, if present.
+func (s *SBDAgent) deleteSBDAgentRemediationIfExists(ctx context.Context, nodeName string) error {
+	ns := os.Getenv("POD_NAMESPACE")
+	if ns == "" {
+		return fmt.Errorf("POD_NAMESPACE is empty; cannot delete SBDRemediation")
+	}
+
+	// Remediation name remains derived from node
+	name := fmt.Sprintf("sbdremediation-%s", nodeName)
+
+	var rem v1alpha1.SBDRemediation
+	if err := s.k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, &rem); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to get SBDRemediation %s/%s: %w", ns, name, err)
+	}
+
+	// Only delete remediations created by SBD agent (by annotation)
+	if rem.Annotations == nil {
+		return nil
+	}
+	if _, ok := rem.Annotations[controller.SBDAgentAnnotationKey]; !ok {
+		return nil
+	}
+
+	// Best-effort delete; tolerate NotFound
+	if err := s.k8sClient.Delete(ctx, &rem); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete SBDRemediation %s/%s: %w", rem.Namespace, rem.Name, err)
+	}
+	logger.Info("Attempting to delete an SBD-agent remediation", "name", rem.Name, "node", nodeName)
+
 	return nil
 }
 
