@@ -630,7 +630,7 @@ func (r *SBDRemediationReconciler) cleanupSBDAgentRemediations(
 		if err := r.Delete(ctx, item); err != nil && !apierrors.IsNotFound(err) {
 			return fmt.Errorf("failed to delete SBDRemediation %s/%s: %w", item.Namespace, item.Name, err)
 		}
-		logger.V(1).Info("Deleted SBD-agent remediation after OOS taint", "name", item.Name, "node", nodeName)
+		logger.V(1).Info("Deleted SBD-agent remediation after placing OOS taint", "name", item.Name, "node", nodeName)
 	}
 	return nil
 }
@@ -650,7 +650,7 @@ func (r *SBDRemediationReconciler) ensureOutOfServiceTaint(ctx context.Context, 
 	if err := r.Update(ctx, node); err != nil {
 		return err
 	}
-	logger.Info("Out Of Service Taint succesfully applied on node", "node name", nodeName)
+	logger.Info("Out Of Service Taint successfully applied on node", "node name", nodeName)
 	return nil
 }
 

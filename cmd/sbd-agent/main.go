@@ -49,6 +49,7 @@ import (
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/medik8s/sbd-operator/api/v1alpha1"
@@ -1299,7 +1300,7 @@ func (s *SBDAgent) peerMonitorLoop() {
 					continue
 				}
 				// Ensure remediation exists
-				if err := s.ensureRemediationExists(s.ctx, peerNodeName); err != nil {
+				if err := s.ensureRemediationExists(s.ctx, peerNodeName, logger); err != nil {
 					logger.Error(err, "Failed to ensure SBDRemediation for unhealthy peer", "peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
 				} else {
 					logger.Info("Ensured SBDRemediation for unhealthy peer", "peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
@@ -1323,7 +1324,7 @@ func (s *SBDAgent) resolveNodeName(nodeID uint16) (string, bool) {
 }
 
 // ensureRemediationExists creates a SBDRemediation for the node if one does not already exist.
-func (s *SBDAgent) ensureRemediationExists(ctx context.Context, nodeName string) error {
+func (s *SBDAgent) ensureRemediationExists(ctx context.Context, nodeName string, logger logr.Logger) error {
 	ns := os.Getenv("POD_NAMESPACE")
 	if ns == "" {
 		return fmt.Errorf("POD_NAMESPACE is empty; cannot create SBDRemediation")
@@ -1366,6 +1367,7 @@ func (s *SBDAgent) ensureRemediationExists(ctx context.Context, nodeName string)
 			Reason:   v1alpha1.SBDRemediationReasonHeartbeatTimeout,
 		},
 	}
+	controllerutil.AddFinalizer(newRem, controller.SBDRemediationFinalizer)
 
 	if err := s.k8sClient.Create(ctx, newRem); err != nil {
 		if apierrors.IsAlreadyExists(err) {
@@ -1373,7 +1375,7 @@ func (s *SBDAgent) ensureRemediationExists(ctx context.Context, nodeName string)
 		}
 		return fmt.Errorf("failed to create SBDRemediation for node %s: %w", nodeName, err)
 	}
-
+	logger.Info("SBD Agent Remediation created", "remediation name", newRem.Name)
 	return nil
 }
 
