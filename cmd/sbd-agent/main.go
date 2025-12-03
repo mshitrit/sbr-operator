@@ -847,7 +847,6 @@ func (s *SBDAgent) incrementFailureCount(operationType string) int {
 		counter = s.heartbeatFailureCount
 	}
 
-	s.setSBDHealthy(false)
 	// Mark agent as unhealthy
 	agentHealthyGauge.Set(0)
 
@@ -857,6 +856,7 @@ func (s *SBDAgent) incrementFailureCount(operationType string) int {
 			"failureCount", counter,
 			"threshold", MaxConsecutiveFailures)
 
+		s.setSBDHealthy(false)
 		// Try to reinitialize the device on next iteration
 		if s.heartbeatDevice != nil && !s.heartbeatDevice.IsClosed() {
 			if closeErr := s.heartbeatDevice.Close(); closeErr != nil {
