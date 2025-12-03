@@ -85,9 +85,9 @@ var outOfServiceTaint = corev1.Taint{
 	Effect: corev1.TaintEffectNoExecute,
 }
 
-// nodeUnschedulableTaint represents the standard unschedulable taint applied by the NodeController
-var nodeUnschedulableTaint = corev1.Taint{
-	Key:    corev1.TaintNodeUnschedulable,
+// sbdExclusiveTaint prevents scheduling new workloads while allowing the SBD agent (with toleration)
+var sbdExclusiveTaint = corev1.Taint{
+	Key:    "medik8s.io/sbd-exclusive",
 	Effect: corev1.TaintEffectNoSchedule,
 }
 
@@ -314,19 +314,13 @@ func (r *SBDRemediationReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		"targetNode", sbdRemediation.Spec.NodeName,
 		"reason", sbdRemediation.Spec.Reason)
 
-	// Ensure the node is cordoned BEFORE setting FencingInProgress
-	node := &corev1.Node{}
-	if err := r.Get(ctx, types.NamespacedName{Name: sbdRemediation.Spec.NodeName}, node); err != nil {
-		logger.Error(err, "Failed to get node before cordon", "node", sbdRemediation.Spec.NodeName)
-		return ctrl.Result{}, fmt.Errorf("failed to get node %s: %w", sbdRemediation.Spec.NodeName, err)
-	}
-	// Only cordon if not already unschedulable (avoid unnecessary updates)
-	if !node.Spec.Unschedulable {
-		if err := r.markNodeAsUnschedulable(ctx, node, logger); err != nil {
-			logger.Error(err, "Failed to mark node unschedulable prior to fencing",
-				"node", sbdRemediation.Spec.NodeName)
-			return ctrl.Result{}, err
-		}
+	// Ensure the node is protected BEFORE setting FencingInProgress by applying SBD-exclusive taint
+	if isPlaced, err := r.ensureSBDExclusiveTaint(ctx, sbdRemediation.Spec.NodeName, logger); err != nil {
+		logger.Error(err, "Failed to apply SBD-exclusive taint prior to fencing",
+			"node", sbdRemediation.Spec.NodeName)
+		return ctrl.Result{}, err
+	} else if isPlaced {
+		// Allow a short requeue to let scheduling react to the taint
 		return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
 	}
 
@@ -378,28 +372,37 @@ func (r *SBDRemediationReconciler) executeFencing(
 	return nil
 }
 
-// markNodeAsUnschedulable marks the target node as unschedulable (cordon) so it will not accept new workloads
-func (r *SBDRemediationReconciler) markNodeAsUnschedulable(ctx context.Context, node *corev1.Node, logger logr.Logger) error {
-	node.Spec.Unschedulable = true
-	if err := r.Update(ctx, node); err != nil {
-		return fmt.Errorf("failed to set node %s unschedulable: %w", node.Name, err)
+// ensureSBDExclusiveTaint adds the SBD-exclusive taint to the given node if not already present
+func (r *SBDRemediationReconciler) ensureSBDExclusiveTaint(ctx context.Context, nodeName string, logger logr.Logger) (bool, error) {
+	node := &corev1.Node{}
+	if err := r.Get(ctx, types.NamespacedName{Name: nodeName}, node); err != nil {
+		return false, fmt.Errorf("failed to get node %s: %w", nodeName, err)
 	}
-	logger.Info("Node marked unschedulable prior to fencing", "node", node.Name)
-	return nil
+	if taintExists(node.Spec.Taints, sbdExclusiveTaint) {
+		return false, nil
+	}
+	node.Spec.Taints = append(node.Spec.Taints, sbdExclusiveTaint)
+	if err := r.Update(ctx, node); err != nil {
+		return false, err
+	}
+	logger.Info("SBD-exclusive taint applied on node", "node", nodeName)
+	return true, nil
 }
 
-// markNodeAsSchedulable marks the node as schedulable again by clearing spec.unschedulable
-func (r *SBDRemediationReconciler) markNodeAsSchedulable(ctx context.Context, nodeName string) error {
+// removeSBDExclusiveTaint removes the SBD-exclusive taint from the given node if present
+func (r *SBDRemediationReconciler) removeSBDExclusiveTaint(ctx context.Context, nodeName string) error {
 	node := &corev1.Node{}
 	if err := r.Get(ctx, types.NamespacedName{Name: nodeName}, node); err != nil {
 		return fmt.Errorf("failed to get node %s: %w", nodeName, err)
 	}
-	if !node.Spec.Unschedulable {
+	if !taintExists(node.Spec.Taints, sbdExclusiveTaint) {
 		return nil
 	}
-	node.Spec.Unschedulable = false
+	if !removeTaint(&node.Spec.Taints, sbdExclusiveTaint) {
+		return nil
+	}
 	if err := r.Update(ctx, node); err != nil {
-		return fmt.Errorf("failed to uncordon node %s: %w", nodeName, err)
+		return err
 	}
 	return nil
 }
@@ -486,19 +489,11 @@ func (r *SBDRemediationReconciler) clearFenceSlotForNode(
 // handleDeletion handles the deletion of a SBDRemediation resource
 func (r *SBDRemediationReconciler) handleDeletion(
 	ctx context.Context, sbdRemediation *medik8sv1alpha1.SBDRemediation, logger logr.Logger) (ctrl.Result, error) {
-	// First: uncordon the node so it can accept workloads again
-	if err := r.markNodeAsSchedulable(ctx, sbdRemediation.Spec.NodeName); err != nil {
-		logger.Error(err, "Failed to mark node schedulable during remediation deletion",
+	// First: remove SBD-exclusive taint (best effort)
+	if err := r.removeSBDExclusiveTaint(ctx, sbdRemediation.Spec.NodeName); err != nil {
+		logger.Error(err, "Failed to remove SBD-exclusive taint during remediation deletion",
 			"node", sbdRemediation.Spec.NodeName)
 		return ctrl.Result{}, err
-	}
-	// Wait until the NodeController removes the unschedulable taint
-	node := &corev1.Node{}
-	if err := r.Get(ctx, types.NamespacedName{Name: sbdRemediation.Spec.NodeName}, node); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to get node %s: %w", sbdRemediation.Spec.NodeName, err)
-	}
-	if taintExists(node.Spec.Taints, nodeUnschedulableTaint) {
-		return ctrl.Result{RequeueAfter: time.Second}, nil
 	}
 
 	// Second: remove OutOfService taint; on failure, return error to retry
