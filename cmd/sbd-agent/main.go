@@ -1344,6 +1344,16 @@ func (s *SBDAgent) ensureRemediationExists(ctx context.Context, nodeName string,
 		return fmt.Errorf("POD_NAMESPACE is empty; cannot create SBDRemediation")
 	}
 
+	name := fmt.Sprintf("sbdremediation-%s", nodeName)
+
+	var existing v1alpha1.SBDRemediation
+	if err := s.k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, &existing); err == nil {
+		// Already exists
+		return nil
+	} else if !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to check existing SBDRemediation %s/%s: %w", ns, name, err)
+	}
+
 	// Enforce global singleton for SBD-agent remediations (across ALL nodes)
 	var all v1alpha1.SBDRemediationList
 	if err := s.k8sClient.List(ctx, &all, client.InNamespace(ns)); err != nil {
@@ -1353,19 +1363,11 @@ func (s *SBDAgent) ensureRemediationExists(ctx context.Context, nodeName string,
 		if all.Items[i].Annotations != nil {
 			if _, ok := all.Items[i].Annotations[controller.SBDAgentAnnotationKey]; ok {
 				// Some SBD-agent remediation already exists → do not create another
+				existingRemediation := all.Items[i]
+				logger.Info("Skipping creating a remediation as an agent remediation already exist for another node", "node skipped", nodeName, "Node with existing remediation", existingRemediation.Spec.NodeName)
 				return nil
 			}
 		}
-	}
-
-	name := fmt.Sprintf("sbdremediation-%s", nodeName)
-
-	var existing v1alpha1.SBDRemediation
-	if err := s.k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, &existing); err == nil {
-		// Already exists
-		return nil
-	} else if !apierrors.IsNotFound(err) {
-		return fmt.Errorf("failed to check existing SBDRemediation %s/%s: %w", ns, name, err)
 	}
 
 	newRem := &v1alpha1.SBDRemediation{
