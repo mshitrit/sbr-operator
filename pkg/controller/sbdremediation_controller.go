@@ -51,6 +51,9 @@ const (
 	ReasonAgentDelegated = "RemediationAgentDelegated"
 	// SBDAgentAnnotationKey marks a remediation created by sbd
 	SBDAgentAnnotationKey = "medik8s.io/sbd-agent"
+	// Fresh window and requeue delay for SBD agent remediations before placing OOS taint
+	SBDAgentRemediationFreshAge     = 1 * time.Minute
+	SBDAgentRemediationRequeueDelay = 10 * time.Second
 
 	// Status update retry configuration
 	MaxStatusUpdateRetries    = 10
@@ -278,6 +281,13 @@ func (r *SBDRemediationReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			logger.V(1).Info("Fencing not yet complete, requeueing for monitoring",
 				"targetNode", sbdRemediation.Spec.NodeName)
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+		}
+		// For fresh SBD-agent remediations, delay placing the OOS taint
+		if isSBDAgentRemediation(&sbdRemediation) && isRemediationFresh(&sbdRemediation, time.Now()) {
+			logger.V(1).Info("Fresh SBD-agent remediation detected; delaying OutOfService taint",
+				"age", time.Since(sbdRemediation.CreationTimestamp.Time),
+				"requeueAfter", SBDAgentRemediationRequeueDelay)
+			return ctrl.Result{RequeueAfter: SBDAgentRemediationRequeueDelay}, nil
 		}
 
 		// Fencing completed successfully - apply OutOfService taint prior to success handling
@@ -666,6 +676,21 @@ func removeTaint(taints *[]corev1.Taint, target corev1.Taint) bool {
 		*taints = out
 	}
 	return removed
+}
+
+func isSBDAgentRemediation(rem *medik8sv1alpha1.SBDRemediation) bool {
+	if rem.Annotations == nil {
+		return false
+	}
+	_, ok := rem.Annotations[SBDAgentAnnotationKey]
+	return ok
+}
+
+func isRemediationFresh(rem *medik8sv1alpha1.SBDRemediation, now time.Time) bool {
+	if rem.CreationTimestamp.IsZero() {
+		return false
+	}
+	return now.Sub(rem.CreationTimestamp.Time) < SBDAgentRemediationFreshAge
 }
 
 // SetupWithManager sets up the controller with the Manager.
