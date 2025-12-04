@@ -1292,6 +1292,12 @@ func (s *SBDAgent) peerMonitorLoop() {
 					continue
 				}
 
+				// Always delete stale SBD-agent remediations (age >= 1m + SBDAgentRemediationFreshAge)
+				if err := s.deleteSBDAgentRemediationIfStale(s.ctx, peerNodeName, time.Now(), logger); err != nil {
+					logger.Error(err, "Failed to delete stale SBD-agent remediation",
+						"peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
+				}
+
 				// Only act on recovered peers
 				if !peer.IsHealthy {
 					// Require a minimum number of missed heartbeats before creating a remediation
@@ -1392,6 +1398,51 @@ func (s *SBDAgent) ensureRemediationExists(ctx context.Context, nodeName string,
 		return fmt.Errorf("failed to create SBDRemediation for node %s: %w", nodeName, err)
 	}
 	logger.Info("SBD Agent Remediation created", "remediation name", newRem.Name)
+	return nil
+}
+
+// deleteSBDAgentRemediationIfStale deletes the SBD-agent-created remediation for a node
+// if its age is >= 1 minute + controller.SBDAgentRemediationFreshAge.
+func (s *SBDAgent) deleteSBDAgentRemediationIfStale(ctx context.Context, nodeName string, now time.Time, logger logr.Logger) error {
+	ns := os.Getenv("POD_NAMESPACE")
+	if ns == "" {
+		return fmt.Errorf("POD_NAMESPACE is empty; cannot check SBDRemediation staleness")
+	}
+
+	name := fmt.Sprintf("sbdremediation-%s", nodeName)
+
+	var rem v1alpha1.SBDRemediation
+	if err := s.k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, &rem); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to get SBDRemediation %s/%s: %w", ns, name, err)
+	}
+
+	// Only SBD-agent-created remediations are subject to this logic
+	if rem.Annotations == nil {
+		return nil
+	}
+	if _, ok := rem.Annotations[controller.SBDAgentAnnotationKey]; !ok {
+		return nil
+	}
+
+	// Consider stale if older than 1 minute + SBDAgentRemediationFreshAge
+	threshold := time.Minute + controller.SBDAgentRemediationFreshAge
+	age := now.Sub(rem.CreationTimestamp.Time)
+	if age < threshold {
+		return nil
+	}
+
+	// Best-effort delete; tolerate NotFound
+	if err := s.k8sClient.Delete(ctx, &rem); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete stale SBDRemediation %s/%s: %w", rem.Namespace, rem.Name, err)
+	}
+	logger.Info("Deleted stale SBD-agent remediation",
+		"remediation", rem.Name,
+		"node", nodeName,
+		"age", age,
+		"threshold", threshold)
 	return nil
 }
 
