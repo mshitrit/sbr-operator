@@ -1317,10 +1317,10 @@ func (s *SBDAgent) peerMonitorLoop() {
 					}
 				} else {
 					// Best-effort delete of SBD-agent remediation for this node (idempotent)
-					if err := s.deleteSBDAgentRemediationIfExists(s.ctx, peerNodeName); err != nil {
+					if isDeleted, err := s.deleteSBDAgentRemediationIfExists(s.ctx, peerNodeName); err != nil {
 						logger.Error(err, "Failed to delete SBD-agent remediation for recovered peer",
 							"peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
-					} else {
+					} else if isDeleted {
 						logger.Info("Deleted SBD-agent remediation for recovered peer",
 							"peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
 					}
@@ -1458,10 +1458,10 @@ func (s *SBDAgent) deleteSBDAgentRemediationIfStale(ctx context.Context, nodeNam
 }
 
 // deleteSBDAgentRemediationIfExists deletes the SBD-agent-created remediation for a node, if present.
-func (s *SBDAgent) deleteSBDAgentRemediationIfExists(ctx context.Context, nodeName string) error {
+func (s *SBDAgent) deleteSBDAgentRemediationIfExists(ctx context.Context, nodeName string) (bool, error) {
 	ns := os.Getenv("POD_NAMESPACE")
 	if ns == "" {
-		return fmt.Errorf("POD_NAMESPACE is empty; cannot delete SBDRemediation")
+		return false, fmt.Errorf("POD_NAMESPACE is empty; cannot delete SBDRemediation")
 	}
 
 	// Remediation name remains derived from node
@@ -1470,26 +1470,24 @@ func (s *SBDAgent) deleteSBDAgentRemediationIfExists(ctx context.Context, nodeNa
 	var rem v1alpha1.SBDRemediation
 	if err := s.k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, &rem); err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil
+			return false, nil
 		}
-		return fmt.Errorf("failed to get SBDRemediation %s/%s: %w", ns, name, err)
+		return false, fmt.Errorf("failed to get SBDRemediation %s/%s: %w", ns, name, err)
 	}
 
 	// Only delete remediations created by SBD agent (by annotation)
 	if rem.Annotations == nil {
-		return nil
+		return false, nil
 	}
 	if _, ok := rem.Annotations[controller.SBDAgentAnnotationKey]; !ok {
-		return nil
+		return false, nil
 	}
 
 	// Best-effort delete; tolerate NotFound
 	if err := s.k8sClient.Delete(ctx, &rem); err != nil && !apierrors.IsNotFound(err) {
-		return fmt.Errorf("failed to delete SBDRemediation %s/%s: %w", rem.Namespace, rem.Name, err)
+		return false, fmt.Errorf("failed to delete SBDRemediation %s/%s: %w", rem.Namespace, rem.Name, err)
 	}
-	logger.Info("Attempting to delete an SBD-agent remediation", "name", rem.Name, "node", nodeName)
-
-	return nil
+	return true, nil
 }
 
 // validateSBDDevice checks if the SBD device is accessible
