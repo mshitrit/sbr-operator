@@ -1402,7 +1402,7 @@ func (s *SBDAgent) ensureRemediationExists(ctx context.Context, nodeName string,
 }
 
 // deleteSBDAgentRemediationIfStale deletes the SBD-agent-created remediation for a node
-// if its age is >= 1 minute + controller.SBDAgentRemediationFreshAge.
+// if its OOS placement annotation exists and its age >= controller.SBDAgentOOSTaintStaleAge.
 func (s *SBDAgent) deleteSBDAgentRemediationIfStale(ctx context.Context, nodeName string, now time.Time, logger logr.Logger) error {
 	ns := os.Getenv("POD_NAMESPACE")
 	if ns == "" {
@@ -1426,10 +1426,21 @@ func (s *SBDAgent) deleteSBDAgentRemediationIfStale(ctx context.Context, nodeNam
 	if _, ok := rem.Annotations[controller.SBDAgentAnnotationKey]; !ok {
 		return nil
 	}
-	//TODO mshitrit recheck threshold
-	// Consider stale if older than 1 minute + SBDAgentRemediationFreshAge
-	threshold := 2*time.Minute + controller.SBDAgentRemediationFreshAge
-	age := now.Sub(rem.CreationTimestamp.Time)
+	// Require valid OOS placement timestamp annotation
+	tsStr, ok := rem.Annotations[controller.SBDAgentOOSTaintTimestampAnnotation]
+	if !ok || tsStr == "" {
+		return nil
+	}
+	placedAt, err := time.Parse(time.RFC3339Nano, tsStr)
+	if err != nil {
+		logger.V(1).Info("Invalid OOS placement timestamp annotation, skipping stale delete",
+			"annotation", controller.SBDAgentOOSTaintTimestampAnnotation, "value", tsStr, "error", err)
+		return nil
+	}
+
+	// Consider stale if older than controller.SBDAgentOOSTaintStaleAge since OOS placement
+	threshold := controller.SBDAgentOOSTaintStaleAge
+	age := now.Sub(placedAt)
 	if age < threshold {
 		return nil
 	}

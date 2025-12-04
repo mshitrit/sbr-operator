@@ -51,9 +51,14 @@ const (
 	ReasonAgentDelegated = "RemediationAgentDelegated"
 	// SBDAgentAnnotationKey marks a remediation created by sbd
 	SBDAgentAnnotationKey = "medik8s.io/sbd-agent"
+	// SBDAgentOOSTaintTimestampAnnotation records when OOS taint was placed on the node for this remediation
+	SBDAgentOOSTaintTimestampAnnotation = "medik8s.io/sbd-oos-placed-at"
 	// Fresh window and requeue delay for SBD agent remediations before placing OOS taint
 	SBDAgentRemediationFreshAge     = 160 * time.Second //TODO mshitrit this time should be calculated based on main.MaxConsecutiveFailures
 	SBDAgentRemediationRequeueDelay = 10 * time.Second
+	// SBDAgentOOSTaintStaleAge is the benchmark duration after which a remediation
+	// is considered stale since OOS taint placement (annotation-based)
+	SBDAgentOOSTaintStaleAge = 1 * time.Minute
 
 	// Status update retry configuration
 	MaxStatusUpdateRetries    = 10
@@ -295,6 +300,22 @@ func (r *SBDRemediationReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			logger.Error(err, "Failed to ensure OutOfService taint on remediated node",
 				"node", sbdRemediation.Spec.NodeName)
 			return ctrl.Result{}, err
+		}
+
+		// If this is an SBD-agent remediation, stamp OOS placement time only once and requeue to avoid update conflicts
+		if isSBDAgentRemediation(&sbdRemediation) {
+			if sbdRemediation.Annotations == nil {
+				sbdRemediation.Annotations = map[string]string{}
+			}
+			if _, exists := sbdRemediation.Annotations[SBDAgentOOSTaintTimestampAnnotation]; !exists {
+				sbdRemediation.Annotations[SBDAgentOOSTaintTimestampAnnotation] = time.Now().UTC().Format(time.RFC3339Nano)
+				if err := r.Update(ctx, &sbdRemediation); err != nil {
+					logger.Error(err, "Failed to annotate remediation with OOS placement timestamp")
+					return ctrl.Result{}, err
+				}
+				// Requeue to proceed with success handling on a fresh ResourceVersion
+				return ctrl.Result{Requeue: true}, nil
+			}
 		}
 
 		// Proceed with successful fencing handling
