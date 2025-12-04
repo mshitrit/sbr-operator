@@ -1426,9 +1426,9 @@ func (s *SBDAgent) deleteSBDAgentRemediationIfStale(ctx context.Context, nodeNam
 	if _, ok := rem.Annotations[controller.SBDAgentAnnotationKey]; !ok {
 		return nil
 	}
-
+	//TODO mshitrit recheck threshold
 	// Consider stale if older than 1 minute + SBDAgentRemediationFreshAge
-	threshold := time.Minute + controller.SBDAgentRemediationFreshAge
+	threshold := 2*time.Minute + controller.SBDAgentRemediationFreshAge
 	age := now.Sub(rem.CreationTimestamp.Time)
 	if age < threshold {
 		return nil
