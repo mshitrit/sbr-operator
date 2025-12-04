@@ -52,7 +52,7 @@ const (
 	// SBDAgentAnnotationKey marks a remediation created by sbd
 	SBDAgentAnnotationKey = "medik8s.io/sbd-agent"
 	// Fresh window and requeue delay for SBD agent remediations before placing OOS taint
-	SBDAgentRemediationFreshAge     = 150 * time.Second
+	SBDAgentRemediationFreshAge     = 160 * time.Second //TODO mshitrit this time should be calculated based on main.MaxConsecutiveFailures
 	SBDAgentRemediationRequeueDelay = 10 * time.Second
 
 	// Status update retry configuration
