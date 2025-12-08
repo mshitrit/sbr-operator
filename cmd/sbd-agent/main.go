@@ -127,7 +127,7 @@ const (
 	CriticalRetryBackoffFactor = 2.0
 
 	// MaxConsecutiveFailures is the maximum number of consecutive failures before triggering self-fence
-	MaxConsecutiveFailures = 7
+	MaxConsecutiveFailures = 5
 	// FailureCountResetInterval is the interval after which failure counts are reset
 	FailureCountResetInterval = 10 * time.Minute
 	// SBDDefaultTimeoutSec used to calculate the heartbeat, would use SBD_TIMEOUT_SECONDS var if exist
@@ -141,7 +141,7 @@ const (
 
 	// DefaultMinMissedHeartbeatsForRemediation gates when peers create a remediation.
 	// Default equals MaxConsecutiveFailures.
-	DefaultMinMissedHeartbeatsForRemediation = MaxConsecutiveFailures - 2
+	DefaultMinMissedHeartbeatsForRemediation = MaxConsecutiveFailures - 1
 )
 
 // Global logger instance

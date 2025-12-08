@@ -53,8 +53,9 @@ const (
 	SBDAgentAnnotationKey = "medik8s.io/sbd-agent"
 	// SBDAgentOOSTaintTimestampAnnotation records when OOS taint was placed on the node for this remediation
 	SBDAgentOOSTaintTimestampAnnotation = "medik8s.io/sbd-oos-placed-at"
+
 	// Fresh window and requeue delay for SBD agent remediations before placing OOS taint
-	SBDAgentRemediationFreshAge     = 160 * time.Second //TODO mshitrit this time should be calculated based on main.MaxConsecutiveFailures
+	SBDAgentRemediationFreshAge     = 15 * time.Second * (5 + 1) //TODO mshitrit should work around dependecies to update the calculation to be: main.SBDDefaultTimeoutSec/2 * (main.MaxConsecutiveFailures+1)  if SBD_TIMEOUT_SECONDS defined, use instead of main.SBDDefaultTimeoutSec
 	SBDAgentRemediationRequeueDelay = 10 * time.Second
 	// SBDAgentOOSTaintStaleAge is the benchmark duration after which a remediation
 	// is considered stale since OOS taint placement (annotation-based)
