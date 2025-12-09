@@ -142,6 +142,12 @@ const (
 	// DefaultMinMissedHeartbeatsForRemediation gates when peers create a remediation.
 	// Default equals MaxConsecutiveFailures.
 	DefaultMinMissedHeartbeatsForRemediation = MaxConsecutiveFailures - 1
+
+	// SBDAgentRemediationGraceAnnotationKey is written on the Node right before deleting
+	// an SBD-agent remediation to provide a grace period for sbd-agent to start running on the node and report health, before re-creating a new remediation.
+	SBDAgentRemediationGraceAnnotationKey = "medik8s.io/sbd-remediation-grace-at"
+	// SBDAgentRemediationGracePeriod is the minimum time to wait between deletion and re-creation.
+	SBDAgentRemediationGracePeriod = 3 * time.Minute
 )
 
 // Global logger instance
@@ -1355,6 +1361,18 @@ func (s *SBDAgent) ensureRemediationExists(ctx context.Context, nodeName string,
 		return fmt.Errorf("POD_NAMESPACE is empty; cannot create SBDRemediation")
 	}
 
+	// Grace window: if the node grace annotation exists and is fresh, skip create
+	if ts, ok, err := s.getNodeGraceAnnotation(ctx, nodeName); err != nil {
+		logger.V(1).Info("Failed to read node grace annotation", "nodeName", nodeName, "error", err)
+		return nil
+	} else if ok && time.Since(ts) < SBDAgentRemediationGracePeriod {
+		logger.Info("Skipping SBD-agent remediation create due to grace window",
+			"nodeName", nodeName,
+			"graceAge", time.Since(ts),
+			"gracePeriod", SBDAgentRemediationGracePeriod)
+		return nil
+	}
+
 	name := fmt.Sprintf("sbdremediation-%s", nodeName)
 
 	var existing v1alpha1.SBDRemediation
@@ -1403,6 +1421,10 @@ func (s *SBDAgent) ensureRemediationExists(ctx context.Context, nodeName string,
 		return fmt.Errorf("failed to create SBDRemediation for node %s: %w", nodeName, err)
 	}
 	logger.Info("SBD Agent Remediation created", "remediation name", newRem.Name)
+	// Clear node grace annotation after successful create (best-effort)
+	if err := s.clearNodeGraceAnnotation(ctx, nodeName); err != nil {
+		logger.V(1).Info("Failed to clear node grace annotation after create", "nodeName", nodeName, "error", err)
+	}
 	return nil
 }
 
@@ -1450,6 +1472,12 @@ func (s *SBDAgent) deleteSBDAgentRemediationIfStale(ctx context.Context, nodeNam
 		return nil
 	}
 
+	// Stamp grace window now to give the agent a chance to come up on the node
+	if err := s.annotateNodeGraceNow(ctx, nodeName); err != nil {
+		logger.V(1).Info("Failed to annotate node grace time before stale remediation delete",
+			"nodeName", nodeName, "error", err)
+	}
+
 	// Best-effort delete; tolerate NotFound
 	if err := s.k8sClient.Delete(ctx, &rem); err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete stale SBDRemediation %s/%s: %w", rem.Namespace, rem.Name, err)
@@ -1486,6 +1514,12 @@ func (s *SBDAgent) deleteSBDAgentRemediationIfExists(ctx context.Context, nodeNa
 	}
 	if _, ok := rem.Annotations[controller.SBDAgentAnnotationKey]; !ok {
 		return false, nil
+	}
+
+	// Stamp grace window now to give the agent a chance to come up on the node
+	if err := s.annotateNodeGraceNow(ctx, nodeName); err != nil {
+		logger.V(1).Info("Failed to annotate node grace time before remediation delete",
+			"nodeName", nodeName, "error", err)
 	}
 
 	// Best-effort delete; tolerate NotFound
@@ -1549,6 +1583,61 @@ func (s *SBDAgent) cleanOwnFenceSlotIfPresent(logger logr.Logger) error {
 		return fmt.Errorf("failed to sync fence device after clearing: %w", err)
 	}
 	logger.Info("Cleared old fence message from own slot", "ourNodeID", s.nodeID)
+	return nil
+}
+
+// annotateNodeGraceNow sets the grace annotation on the Node to the current time
+func (s *SBDAgent) annotateNodeGraceNow(ctx context.Context, nodeName string) error {
+	node := &corev1.Node{}
+	if err := s.k8sClient.Get(ctx, client.ObjectKey{Name: nodeName}, node); err != nil {
+		return fmt.Errorf("get node %s for grace annotation: %w", nodeName, err)
+	}
+	if node.Annotations == nil {
+		node.Annotations = map[string]string{}
+	}
+	node.Annotations[SBDAgentRemediationGraceAnnotationKey] = time.Now().UTC().Format(time.RFC3339Nano)
+	if err := s.k8sClient.Update(ctx, node); err != nil {
+		return fmt.Errorf("update node %s grace annotation: %w", nodeName, err)
+	}
+	return nil
+}
+
+// getNodeGraceAnnotation returns (ts, true) if the grace annotation exists and parses; otherwise (time.Time{}, false)
+func (s *SBDAgent) getNodeGraceAnnotation(ctx context.Context, nodeName string) (time.Time, bool, error) {
+	node := &corev1.Node{}
+	if err := s.k8sClient.Get(ctx, client.ObjectKey{Name: nodeName}, node); err != nil {
+		return time.Time{}, false, fmt.Errorf("get node %s grace annotation: %w", nodeName, err)
+	}
+	if node.Annotations == nil {
+		return time.Time{}, false, nil
+	}
+	raw, ok := node.Annotations[SBDAgentRemediationGraceAnnotationKey]
+	if !ok || raw == "" {
+		return time.Time{}, false, nil
+	}
+	ts, err := time.Parse(time.RFC3339Nano, raw)
+	if err != nil {
+		return time.Time{}, false, nil
+	}
+	return ts, true, nil
+}
+
+// clearNodeGraceAnnotation removes the grace annotation if present
+func (s *SBDAgent) clearNodeGraceAnnotation(ctx context.Context, nodeName string) error {
+	node := &corev1.Node{}
+	if err := s.k8sClient.Get(ctx, client.ObjectKey{Name: nodeName}, node); err != nil {
+		return fmt.Errorf("get node %s to clear grace annotation: %w", nodeName, err)
+	}
+	if node.Annotations == nil {
+		return nil
+	}
+	if _, ok := node.Annotations[SBDAgentRemediationGraceAnnotationKey]; !ok {
+		return nil
+	}
+	delete(node.Annotations, SBDAgentRemediationGraceAnnotationKey)
+	if err := s.k8sClient.Update(ctx, node); err != nil {
+		return fmt.Errorf("update node %s clearing grace annotation: %w", nodeName, err)
+	}
 	return nil
 }
 
