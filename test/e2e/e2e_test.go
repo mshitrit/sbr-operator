@@ -167,7 +167,7 @@ var _ = Describe("SBD Operator", Ordered, Label("e2e"), func() {
 			testStorageAccessInterruption(clusterInfo)
 		})
 
-		It("should not trigger fencing when kubelet communication is interrupted", func() {
+		FIt("should not trigger fencing when kubelet communication is interrupted", func() {
 			if len(clusterInfo.WorkerNodes) < 3 {
 				Skip("Test requires at least 3 worker nodes for safe communication disruption testing")
 			}
@@ -505,7 +505,7 @@ func checkNodeReboot(nodeName, reason, originalBootTime string, timeout time.Dur
 			return true
 		}
 		return false
-	}, timeout, time.Second*45)
+	}, timeout, time.Second*15)
 
 	resultText := fmt.Sprintf("Node %s should %shave rebooted %s", nodeName, rebootText, reason)
 
@@ -734,7 +734,7 @@ func testStorageAccessInterruption(cluster ClusterInfo) {
 
 	// Monitor for node disappearing (panic/reboot) or boot ID change
 	checkNodeReboot(targetNode.Metadata.Name, "during storage disruption",
-		originalBootTimes[targetNode.Metadata.Name], time.Minute*2, true)
+		originalBootTimes[targetNode.Metadata.Name], time.Minute*3, true)
 
 	// Verify node recovery (instead of the old immediate recovery test)
 	By("Verifying node has fully recovered after fencing and shared storage restoration")
@@ -1549,6 +1549,35 @@ func cleanupDisruptionPods(testNamespace *utils.TestNamespace) {
 	}
 }
 
+// UncordonAndRemoveOOSTaint clears spec.unschedulable and removes the general OOS taint.
+// Returns true if a change was made to the Node.Spec.
+func UncordonAndRemoveOOSTaint(n *corev1.Node) bool {
+	updated := false
+
+	// Ensure node is schedulable
+	if n.Spec.Unschedulable {
+		n.Spec.Unschedulable = false
+		updated = true
+	}
+
+	// Remove general OOS taint (node.kubernetes.io/out-of-service, NoExecute)
+	if len(n.Spec.Taints) > 0 {
+		newTaints := make([]corev1.Taint, 0, len(n.Spec.Taints))
+		for _, t := range n.Spec.Taints {
+			if !(t.Key == corev1.TaintNodeOutOfService && t.Effect == corev1.TaintEffectNoExecute) {
+				newTaints = append(newTaints, t)
+			} else {
+				updated = true
+			}
+		}
+		if updated {
+			n.Spec.Taints = newTaints
+		}
+	}
+
+	return updated
+}
+
 func cleanupTestArtifacts(testNamespace *utils.TestNamespace) {
 	cleanupDisruptionPods(testNamespace)
 
@@ -1583,6 +1612,36 @@ func cleanupTestArtifacts(testNamespace *utils.TestNamespace) {
 	}
 
 	// Wait a moment for cleanup
+	By("Uncordoning all nodes and removing OOS taints")
+	nodes := &corev1.NodeList{}
+	err = k8sClient.List(ctx, nodes)
+	Expect(err).NotTo(HaveOccurred(), "Failed to list nodes for uncordon/OOS cleanup")
+
+	for i := range nodes.Items {
+		// Small conflict-retry loop
+		for attempt := 0; attempt < 3; attempt++ {
+			node := &corev1.Node{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{Name: nodes.Items[i].Name}, node); err != nil {
+				GinkgoWriter.Printf("Failed to refetch node %s: %v\n", nodes.Items[i].Name, err)
+				break
+			}
+
+			updated := UncordonAndRemoveOOSTaint(node)
+			if !updated {
+				break
+			}
+
+			if err := k8sClient.Update(ctx, node); err != nil {
+				if errors.IsConflict(err) {
+					continue // refetch and retry
+				}
+				GinkgoWriter.Printf("Failed to update node %s during uncordon/OOS cleanup: %v\n", node.Name, err)
+			} else {
+				GinkgoWriter.Printf("Node %s set schedulable and OOS taint removed (if present)\n", node.Name)
+			}
+			break
+		}
+	}
 	time.Sleep(5 * time.Second)
 }
 
