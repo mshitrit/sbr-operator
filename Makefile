@@ -106,6 +106,26 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
+.PHONY: go-tidy
+go-tidy: # Run go mod tidy - add missing and remove unused modules.
+	go mod tidy
+
+.PHONY: go-vendor
+go-vendor:  # Run go mod vendor - make vendored copy of dependencies.
+	go mod vendor
+
+.PHONY: go-verify
+go-verify: go-tidy go-vendor # Run go mod verify - verify dependencies have expected content
+	go mod verify
+
+# Check for sorted imports
+test-imports: sort-imports
+	$(SORT_IMPORTS) .
+
+# Sort imports
+fix-imports: sort-imports
+	$(SORT_IMPORTS) -w .
+
 .PHONY: test-all
 test-all: test test-smoke test-e2e ## Run all tests: unit tests, smoke tests, and e2e tests
 
@@ -519,6 +539,7 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
 GINKGO ?= $(LOCALBIN)/ginkgo
+SORT_IMPORTS_DIR ?= $(LOCALBIN)/sort-imports
 OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
 OPM ?= $(LOCALBIN)/opm
 
@@ -531,6 +552,11 @@ ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
 GOLANGCI_LINT_VERSION ?= v2.1.0
 GINKGO_VERSION ?= v2.22.2
+# See https://github.com/slintes/sort-imports/releases for the last version
+SORT_IMPORTS_VERSION = v0.3.0
+
+## Specific Tool Binaries
+SORT_IMPORTS = $(SORT_IMPORTS_DIR)/$(SORT_IMPORTS_VERSION)/sort-imports
 
 # OLM tooling versions (aligned with other operators)
 OPERATOR_SDK_VERSION ?= v1.33.0
@@ -588,20 +614,24 @@ ginkgo: $(GINKGO) ## Download ginkgo locally if necessary.
 $(GINKGO): $(LOCALBIN)
 	$(call go-install-tool,$(GINKGO),github.com/onsi/ginkgo/v2/ginkgo,$(GINKGO_VERSION))
 
-# go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
-# $1 - target path with name of binary
-# $2 - package url which can be installed
-# $3 - specific version of package
+.PHONY: sort-imports
+sort-imports: ## Download sort-imports locally if necessary.
+	$(call go-install-tool,$(SORT_IMPORTS),$(SORT_IMPORTS_DIR),github.com/slintes/sort-imports@$(SORT_IMPORTS_VERSION))
+
+# go-install-tool will delete old package $2, then 'go install' any package $3 to $1.
 define go-install-tool
-@[ -f "$(1)-$(3)" ] || { \
-set -e; \
-package=$(2)@$(3) ;\
-echo "Downloading $${package}" ;\
-rm -f $(1) || true ;\
-GOBIN=$(LOCALBIN) go install $${package} ;\
-mv $(1) $(1)-$(3) ;\
-} ;\
-ln -sf $(1)-$(3) $(1)
+@[ -f $(1) ]|| { \
+	set -e ;\
+	rm -rf $(2) ;\
+	TMP_DIR=$$(mktemp -d) ;\
+	cd $$TMP_DIR ;\
+	go mod init tmp ;\
+	BIN_DIR=$$(dirname $(1)) ;\
+	mkdir -p $$BIN_DIR ;\
+	echo "Downloading $(3)" ;\
+	GOBIN=$$BIN_DIR GOFLAGS='' go install $(3) ;\
+	rm -rf $$TMP_DIR ;\
+}
 endef
 
 ##@ OLM Bundle & Catalog
@@ -690,3 +720,6 @@ bundle-update: yq ## Patch CSV with image, icon and minKubeVersion
 	$(YQ) -i '.spec.icon[0].mediatype = "image/png"' ${CSV}
 	@# set minimum supported Kubernetes version
 	$(YQ) -i '.spec.minKubeVersion = "1.26.0"' ${CSV}
+
+.PHONY: full-gen
+full-gen: go-verify manifests  generate manifests fmt bundle fix-imports bundle-reset ## generates all automatically generated content
