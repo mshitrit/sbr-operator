@@ -246,7 +246,7 @@ func (tn *TestNamespace) CleanupSBDConfig(sbdConfig *medik8sv1alpha1.SBDConfig) 
 		return false
 	}, time.Minute*5, time.Second*5).Should(BeTrue(), fmt.Sprintf("SBDConfig %s not deleted", sbdConfig.Name))
 
-	// Wait for associated pods to be terminated, with force deletion for stuck Failed pods
+	// Wait for associated pods to be terminated, with force deletion for stuck non-running pods
 	podCleanupStartTime := time.Now()
 	const forceDeleteTimeout = 2 * time.Minute // Force delete stuck pods after 2 minutes
 	forceDeleteAttempted := false
@@ -269,39 +269,33 @@ func (tn *TestNamespace) CleanupSBDConfig(sbdConfig *medik8sv1alpha1.SBDConfig) 
 		// If pods are still present after timeout and we haven't attempted force delete yet
 		elapsed := time.Since(podCleanupStartTime)
 		if elapsed >= forceDeleteTimeout && !forceDeleteAttempted && len(pods.Items) > 0 {
-			// Check if any pods are in Failed state
-			hasFailedPods := false
+			// Collect all pods that aren't running
+			var podsToDelete []corev1.Pod
 			for _, pod := range pods.Items {
-				if pod.Status.Phase == corev1.PodFailed {
-					hasFailedPods = true
-					break
+				if pod.Status.Phase != corev1.PodRunning {
+					podsToDelete = append(podsToDelete, pod)
 				}
 			}
 
-			if hasFailedPods {
-				GinkgoWriter.Printf("Force deleting stuck Failed pods after %v timeout\n", elapsed)
+			for _, pod := range podsToDelete {
+				// Force delete collected pods
+				GinkgoWriter.Printf("Force deleting stuck non-running pods after %v timeout\n", elapsed)
 				forceDeleteAttempted = true
-
-				// Force delete all pods that are in Failed state
-				for _, pod := range pods.Items {
-					if pod.Status.Phase == corev1.PodFailed {
-						GinkgoWriter.Printf("Force deleting pod %s (phase: %s)\n", pod.Name, pod.Status.Phase)
-						// Use GracePeriodSeconds=0 for immediate deletion
-						zero := int64(0)
-						policy := metav1.DeletePropagationBackground
-						err := tn.Clients.Clientset.CoreV1().Pods(tn.Name).Delete(
-							tn.Clients.Context, pod.Name, metav1.DeleteOptions{
-								GracePeriodSeconds: &zero,
-								PropagationPolicy:  &policy,
-							})
-						if err != nil && !errors.IsNotFound(err) {
-							GinkgoWriter.Printf("Failed to force delete pod %s: %v\n", pod.Name, err)
-						} else if errors.IsNotFound(err) {
-							GinkgoWriter.Printf("Pod %s already deleted\n", pod.Name)
-						} else {
-							GinkgoWriter.Printf("Successfully initiated force delete for pod %s\n", pod.Name)
-						}
-					}
+				GinkgoWriter.Printf("Force deleting pod %s (phase: %s)\n", pod.Name, pod.Status.Phase)
+				// Use GracePeriodSeconds=0 for immediate deletion
+				zero := int64(0)
+				policy := metav1.DeletePropagationBackground
+				err := tn.Clients.Clientset.CoreV1().Pods(tn.Name).Delete(
+					tn.Clients.Context, pod.Name, metav1.DeleteOptions{
+						GracePeriodSeconds: &zero,
+						PropagationPolicy:  &policy,
+					})
+				if err != nil && !errors.IsNotFound(err) {
+					GinkgoWriter.Printf("Failed to force delete pod %s: %v\n", pod.Name, err)
+				} else if errors.IsNotFound(err) {
+					GinkgoWriter.Printf("Pod %s already deleted\n", pod.Name)
+				} else {
+					GinkgoWriter.Printf("Successfully initiated force delete for pod %s\n", pod.Name)
 				}
 			}
 		}
