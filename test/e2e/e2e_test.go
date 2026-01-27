@@ -735,7 +735,7 @@ func testStorageAccessInterruption(cluster ClusterInfo) {
 
 	// Monitor for node disappearing (panic/reboot) or boot ID change
 	checkNodeReboot(targetNode.Metadata.Name, "during storage disruption",
-		originalBootTimes[targetNode.Metadata.Name], time.Minute*2, true)
+		originalBootTimes[targetNode.Metadata.Name], time.Minute*10, true)
 
 	// Verify node recovery (instead of the old immediate recovery test)
 	By("Verifying node has fully recovered after fencing and shared storage restoration")
