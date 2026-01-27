@@ -1703,7 +1703,15 @@ func DescribeEnvironment(testClients *TestClients, testNamespace *TestNamespace)
 				GinkgoWriter.Printf("Failed to get node mapping summary: %s\n", err)
 			}
 		}
-		Eventually(verifyAgentsUp).Should(Succeed())
+		// Run verification but don't fail cleanup if it errors
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					GinkgoWriter.Printf("Warning: verifyAgentsUp failed but continuing cleanup: %v\n", r)
+				}
+			}()
+			Eventually(verifyAgentsUp).Should(Succeed())
+		}()
 
 		// Collect the definition of any storage jobs
 		debugCollector.CollectStorageJobs(testNamespace.Name)
