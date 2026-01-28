@@ -413,6 +413,7 @@ func (psc *PodStatusChecker) WaitForPodsReady(minCount int, timeout time.Duratio
 		}
 
 		readyPods := 0
+		var unreadyPods []corev1.Pod
 		for _, pod := range pods.Items {
 			if pod.Status.Phase == corev1.PodRunning {
 				for _, condition := range pod.Status.Conditions {
@@ -420,12 +421,20 @@ func (psc *PodStatusChecker) WaitForPodsReady(minCount int, timeout time.Duratio
 						condition.Status == corev1.ConditionTrue {
 						readyPods++
 						break
+					} else {
+						unreadyPods = append(unreadyPods, pod)
 					}
 				}
+			} else {
+				unreadyPods = append(unreadyPods, pod)
 			}
 		}
 
 		GinkgoWriter.Printf("Found %d ready pods out of %d total\n", readyPods, len(pods.Items))
+		for _, pod := range unreadyPods {
+			GinkgoWriter.Printf("Found unready pod: %s status: %s \n", pod.Name, pod.Status.Phase)
+		}
+
 		return readyPods
 	}, timeout, time.Second*15).Should(BeNumerically(">=", minCount))
 
