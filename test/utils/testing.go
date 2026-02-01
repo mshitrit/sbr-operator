@@ -413,26 +413,45 @@ func (psc *PodStatusChecker) WaitForPodsReady(minCount int, timeout time.Duratio
 		}
 
 		readyPods := 0
+		unreadyPodsCount := 0
 		var unreadyPods []corev1.Pod
 		for _, pod := range pods.Items {
 			if pod.Status.Phase == corev1.PodRunning {
+				readyPodAdded := false
 				for _, condition := range pod.Status.Conditions {
 					if condition.Type == corev1.PodReady &&
 						condition.Status == corev1.ConditionTrue {
 						readyPods++
+						readyPodAdded = true
 						break
-					} else {
-						unreadyPods = append(unreadyPods, pod)
 					}
 				}
+				if !readyPodAdded {
+					unreadyPodsCount++
+					unreadyPods = append(unreadyPods, pod)
+				}
 			} else {
+				unreadyPodsCount++
 				unreadyPods = append(unreadyPods, pod)
 			}
 		}
 
 		GinkgoWriter.Printf("Found %d ready pods out of %d total\n", readyPods, len(pods.Items))
+		GinkgoWriter.Printf("Found %d unready pods out of %d total\n", unreadyPodsCount, len(pods.Items))
+
 		for _, pod := range unreadyPods {
-			GinkgoWriter.Printf("Found unready pod: %s status: %s \n", pod.Name, pod.Status.Phase)
+			var readyConditionStatus corev1.ConditionStatus
+			for _, condition := range pod.Status.Conditions {
+				if condition.Type == corev1.PodReady {
+					readyConditionStatus = condition.Status
+				}
+			}
+			if len(readyConditionStatus) != 0 {
+				GinkgoWriter.Printf("Found unready pod: %s status: %s status type: %s \n", pod.Name, pod.Status.Phase, readyConditionStatus)
+
+			} else {
+				GinkgoWriter.Printf("Found unready pod: %s status: %s \n", pod.Name, pod.Status.Phase)
+			}
 		}
 
 		return readyPods
