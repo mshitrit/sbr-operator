@@ -20,6 +20,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"os"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -59,6 +60,8 @@ func TestE2E(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	_ = os.Setenv("KUBECONFIG", "/home/mshitrit/scripts/openshift-installer/openshift-install-4.20/auth/kubeconfig")
+
 	Expect(utils.CheckClusterConnection()).To(Succeed(), "Kubernetes cluster connection required")
 
 	if testFlags.DebugMode {
