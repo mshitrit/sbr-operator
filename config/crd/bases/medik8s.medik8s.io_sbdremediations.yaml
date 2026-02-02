@@ -15,7 +15,7 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.nodeName
+    - jsonPath: .metadata.name
       name: Node
       type: string
     - jsonPath: .status.conditions[?(@.type=='Ready')].status
@@ -55,9 +55,6 @@ spec:
           spec:
             description: SBDRemediationSpec defines the desired state of SBDRemediation.
             properties:
-              nodeName:
-                description: NodeName is the name of the Kubernetes node to be fenced
-                type: string
               reason:
                 default: NodeUnresponsive
                 description: Reason specifies why this node needs to be fenced
@@ -74,8 +71,6 @@ spec:
                 maximum: 300
                 minimum: 30
                 type: integer
-            required:
-            - nodeName
             type: object
           status:
             description: SBDRemediationStatus defines the observed state of SBDRemediation.

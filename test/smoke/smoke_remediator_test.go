@@ -101,13 +101,13 @@ var _ = Describe("SBD Remediation Smoke Tests", Label("Smoke", "Remediation"), f
 
 		It("should create and manage SBDRemediation resource", func() {
 			By("creating an SBDRemediation resource")
+			testNodeName := "test-node"
 			sbdRemediation := &medik8sv1alpha1.SBDRemediation{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      sbdRemediationName,
+					Name:      testNodeName,
 					Namespace: testNamespace.Name,
 				},
 				Spec: medik8sv1alpha1.SBDRemediationSpec{
-					NodeName:       "test-node",
 					Reason:         medik8sv1alpha1.SBDRemediationReasonManualFencing,
 					TimeoutSeconds: 60,
 				},
@@ -204,13 +204,13 @@ var _ = Describe("SBD Remediation Smoke Tests", Label("Smoke", "Remediation"), f
 
 		It("should handle SBDRemediation resources with timeout validation", func() {
 			By("creating a test SBDRemediation with custom timeout")
+			testTimeoutNodeName := "test-timeout-node"
 			sbdRemediation := &medik8sv1alpha1.SBDRemediation{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-sbdremediation-timeout",
+					Name:      testTimeoutNodeName,
 					Namespace: testNamespace.Name,
 				},
 				Spec: medik8sv1alpha1.SBDRemediationSpec{
-					NodeName:       "test-worker-node",
 					Reason:         medik8sv1alpha1.SBDRemediationReasonHeartbeatTimeout,
 					TimeoutSeconds: 120,
 				},
@@ -223,7 +223,7 @@ var _ = Describe("SBD Remediation Smoke Tests", Label("Smoke", "Remediation"), f
 			Eventually(func() int32 {
 				foundSBDRemediation := &medik8sv1alpha1.SBDRemediation{}
 				err := testClients.Client.Get(testClients.Context, types.NamespacedName{
-					Name:      "test-sbdremediation-timeout",
+					Name:      testTimeoutNodeName,
 					Namespace: testNamespace.Name,
 				}, foundSBDRemediation)
 				if err != nil {
@@ -236,7 +236,7 @@ var _ = Describe("SBD Remediation Smoke Tests", Label("Smoke", "Remediation"), f
 			Eventually(func() bool {
 				foundSBDRemediation := &medik8sv1alpha1.SBDRemediation{}
 				err := testClients.Client.Get(testClients.Context, types.NamespacedName{
-					Name:      "test-sbdremediation-timeout",
+					Name:      testTimeoutNodeName,
 					Namespace: testNamespace.Name,
 				}, foundSBDRemediation)
 				if err != nil {
@@ -289,14 +289,14 @@ var _ = Describe("SBD Remediation Smoke Tests", Label("Smoke", "Remediation"), f
 
 			By(fmt.Sprintf("creating %d SBDRemediation resources with real node names", numRemediations))
 			for i := 0; i < numRemediations; i++ {
-				remediationNames[i] = fmt.Sprintf("test-concurrent-remediation-%d", i)
+				// Use node name directly as remediation name
+				remediationNames[i] = workerNodes[i]
 				sbdRemediation := &medik8sv1alpha1.SBDRemediation{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      remediationNames[i],
 						Namespace: testNamespace.Name,
 					},
 					Spec: medik8sv1alpha1.SBDRemediationSpec{
-						NodeName:       workerNodes[i], // Use real node names
 						Reason:         medik8sv1alpha1.SBDRemediationReasonNodeUnresponsive,
 						TimeoutSeconds: 60,
 					},
@@ -371,13 +371,13 @@ var _ = Describe("SBD Remediation Smoke Tests", Label("Smoke", "Remediation"), f
 			// Note: This test specifically uses a clearly fake node name to test
 			// error handling for truly non-existent nodes, unlike other tests
 			// that use real cluster node names for realistic pipeline testing
+			invalidNodeName := "definitely-non-existent-node-12345" // Clearly fake for error testing
 			sbdRemediation := &medik8sv1alpha1.SBDRemediation{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-invalid-node-remediation",
+					Name:      invalidNodeName,
 					Namespace: testNamespace.Name,
 				},
 				Spec: medik8sv1alpha1.SBDRemediationSpec{
-					NodeName:       "definitely-non-existent-node-12345", // Clearly fake for error testing
 					Reason:         medik8sv1alpha1.SBDRemediationReasonHeartbeatTimeout,
 					TimeoutSeconds: 30,
 				},
@@ -463,11 +463,10 @@ var _ = Describe("SBD Remediation Smoke Tests", Label("Smoke", "Remediation"), f
 			By("attempting to create SBDRemediation with timeout below minimum")
 			invalidSBDRemediation := &medik8sv1alpha1.SBDRemediation{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-invalid-timeout-low",
+					Name:      testNodeName,
 					Namespace: testNamespace.Name,
 				},
 				Spec: medik8sv1alpha1.SBDRemediationSpec{
-					NodeName:       testNodeName, // Use real node name
 					Reason:         medik8sv1alpha1.SBDRemediationReasonManualFencing,
 					TimeoutSeconds: 29, // Below minimum (30)
 				},
@@ -479,11 +478,10 @@ var _ = Describe("SBD Remediation Smoke Tests", Label("Smoke", "Remediation"), f
 			By("attempting to create SBDRemediation with timeout above maximum")
 			invalidSBDRemediation = &medik8sv1alpha1.SBDRemediation{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-invalid-timeout-high",
+					Name:      testNodeName,
 					Namespace: testNamespace.Name,
 				},
 				Spec: medik8sv1alpha1.SBDRemediationSpec{
-					NodeName:       testNodeName, // Use real node name
 					Reason:         medik8sv1alpha1.SBDRemediationReasonManualFencing,
 					TimeoutSeconds: 301, // Above maximum (300)
 				},
@@ -495,11 +493,10 @@ var _ = Describe("SBD Remediation Smoke Tests", Label("Smoke", "Remediation"), f
 			By("creating SBDRemediation with valid timeout at boundaries")
 			validSBDRemediation := &medik8sv1alpha1.SBDRemediation{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-valid-timeout-boundary",
+					Name:      testNodeName,
 					Namespace: testNamespace.Name,
 				},
 				Spec: medik8sv1alpha1.SBDRemediationSpec{
-					NodeName:       testNodeName, // Use real node name
 					Reason:         medik8sv1alpha1.SBDRemediationReasonManualFencing,
 					TimeoutSeconds: 30, // Minimum valid timeout
 				},
@@ -510,11 +507,10 @@ var _ = Describe("SBD Remediation Smoke Tests", Label("Smoke", "Remediation"), f
 
 			validSBDRemediationMax := &medik8sv1alpha1.SBDRemediation{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-valid-timeout-boundary-max",
+					Name:      testNodeName,
 					Namespace: testNamespace.Name,
 				},
 				Spec: medik8sv1alpha1.SBDRemediationSpec{
-					NodeName:       testNodeName, // Use real node name
 					Reason:         medik8sv1alpha1.SBDRemediationReasonManualFencing,
 					TimeoutSeconds: 300, // Maximum valid timeout
 				},

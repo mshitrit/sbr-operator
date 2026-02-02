@@ -24,6 +24,7 @@ import (
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -100,27 +101,27 @@ var _ = Describe("SBDRemediation Controller", func() {
 
 		It("should add finalizer to new SBDRemediation resources", func() {
 			By("Creating a SBDRemediation resource")
+			testNodeName := "worker-1"
 			resource := &medik8sv1alpha1.SBDRemediation{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      resourceName,
+					Name:      testNodeName,
 					Namespace: "default",
 				},
 				Spec: medik8sv1alpha1.SBDRemediationSpec{
-					NodeName: "worker-1",
-					Reason:   medik8sv1alpha1.SBDRemediationReasonHeartbeatTimeout,
+					Reason: medik8sv1alpha1.SBDRemediationReasonHeartbeatTimeout,
 				},
 			}
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
 			By("Reconciling the resource")
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: namespacedName,
+				NamespacedName: types.NamespacedName{Name: testNodeName, Namespace: "default"},
 			})
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Verifying finalizer was added")
 			updatedResource := &medik8sv1alpha1.SBDRemediation{}
-			Expect(k8sClient.Get(ctx, namespacedName, updatedResource)).To(Succeed())
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: testNodeName, Namespace: "default"}, updatedResource)).To(Succeed())
 
 			// Note: In agent-based architecture, the controller primarily adds finalizers
 			// and updates status, while agents handle the actual fencing
@@ -128,14 +129,14 @@ var _ = Describe("SBDRemediation Controller", func() {
 
 		It("should handle deletion properly", func() {
 			By("Creating a SBDRemediation resource")
+			testNodeName := "worker-2"
 			resource := &medik8sv1alpha1.SBDRemediation{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      resourceName,
+					Name:      testNodeName,
 					Namespace: "default",
 				},
 				Spec: medik8sv1alpha1.SBDRemediationSpec{
-					NodeName: "worker-2",
-					Reason:   medik8sv1alpha1.SBDRemediationReasonManualFencing,
+					Reason: medik8sv1alpha1.SBDRemediationReasonManualFencing,
 				},
 			}
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
@@ -171,14 +172,14 @@ var _ = Describe("SBDRemediation Controller", func() {
 
 		It("should handle timeoutSeconds field correctly", func() {
 			By("Creating SBDRemediation with custom timeout")
+			testNodeName := "worker-3"
 			customTimeout := int32(120)
 			resource := &medik8sv1alpha1.SBDRemediation{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      resourceName,
+					Name:      testNodeName,
 					Namespace: "default",
 				},
 				Spec: medik8sv1alpha1.SBDRemediationSpec{
-					NodeName:       "worker-3",
 					Reason:         medik8sv1alpha1.SBDRemediationReasonManualFencing,
 					TimeoutSeconds: customTimeout,
 				},
@@ -188,7 +189,7 @@ var _ = Describe("SBDRemediation Controller", func() {
 			By("Verifying timeout is preserved in spec")
 			Eventually(func() int32 {
 				updatedResource := &medik8sv1alpha1.SBDRemediation{}
-				err := k8sClient.Get(ctx, namespacedName, updatedResource)
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: testNodeName, Namespace: "default"}, updatedResource)
 				if err != nil {
 					return 0
 				}
@@ -199,13 +200,13 @@ var _ = Describe("SBDRemediation Controller", func() {
 		Context("with valid SBDRemediation spec for a fake node", func() {
 			It("should handle normal processing flow", func() {
 				By("Creating a well-formed SBDRemediation resource")
+				testNodeName := "fake-node-1"
 				resource := &medik8sv1alpha1.SBDRemediation{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
+						Name:      testNodeName,
 						Namespace: "default",
 					},
 					Spec: medik8sv1alpha1.SBDRemediationSpec{
-						NodeName:       "fake-node-1",
 						Reason:         medik8sv1alpha1.SBDRemediationReasonNodeUnresponsive,
 						TimeoutSeconds: 300,
 					},
@@ -224,19 +225,21 @@ var _ = Describe("SBDRemediation Controller", func() {
 
 				By("Reconciling the resource multiple times")
 				_, err := reconciler.Reconcile(ctx, reconcile.Request{
-					NamespacedName: namespacedName,
+					NamespacedName: types.NamespacedName{Name: testNodeName, Namespace: "default"},
 				})
+				// Placing finilizer
 				Expect(err).NotTo(HaveOccurred())
 
 				_, err = reconciler.Reconcile(ctx, reconcile.Request{
-					NamespacedName: namespacedName,
+					NamespacedName: types.NamespacedName{Name: testNodeName, Namespace: "default"},
 				})
+				// Node isn't found error
 				Expect(err).To(HaveOccurred())
 
 				By("Verifying the resource exists and is processable")
 				finalResource := &medik8sv1alpha1.SBDRemediation{}
-				Expect(k8sClient.Get(ctx, namespacedName, finalResource)).To(Succeed())
-				Expect(finalResource.Spec.NodeName).To(Equal("fake-node-1"))
+				Expect(k8sClient.Get(ctx, types.NamespacedName{Name: testNodeName, Namespace: "default"}, finalResource)).To(Succeed())
+				Expect(finalResource.Name).To(Equal(testNodeName))
 				Expect(finalResource.Spec.Reason).To(Equal(medik8sv1alpha1.SBDRemediationReasonNodeUnresponsive))
 			})
 		})
@@ -244,13 +247,13 @@ var _ = Describe("SBDRemediation Controller", func() {
 		Context("with valid SBDRemediation spec for a real node", func() {
 			It("should handle normal processing flow", func() {
 				By("Creating a well-formed SBDRemediation resource")
+				testNodeName := "worker-4"
 				resource := &medik8sv1alpha1.SBDRemediation{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
+						Name:      testNodeName,
 						Namespace: "default",
 					},
 					Spec: medik8sv1alpha1.SBDRemediationSpec{
-						NodeName:       "worker-4",
 						Reason:         medik8sv1alpha1.SBDRemediationReasonNodeUnresponsive,
 						TimeoutSeconds: 300,
 					},
@@ -259,7 +262,7 @@ var _ = Describe("SBDRemediation Controller", func() {
 
 				workerNode := &corev1.Node{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "worker-4",
+						Name: testNodeName,
 					},
 				}
 				Expect(k8sClient.Create(ctx, workerNode)).To(Succeed())
@@ -270,15 +273,15 @@ var _ = Describe("SBDRemediation Controller", func() {
 				By("Reconciling the resource multiple times")
 				for i := 0; i < 3; i++ {
 					_, err := reconciler.Reconcile(ctx, reconcile.Request{
-						NamespacedName: namespacedName,
+						NamespacedName: types.NamespacedName{Name: testNodeName, Namespace: "default"},
 					})
 					Expect(err).NotTo(HaveOccurred())
 				}
 
 				By("Verifying the resource exists and is processable")
 				finalResource := &medik8sv1alpha1.SBDRemediation{}
-				Expect(k8sClient.Get(ctx, namespacedName, finalResource)).To(Succeed())
-				Expect(finalResource.Spec.NodeName).To(Equal("worker-4"))
+				Expect(k8sClient.Get(ctx, types.NamespacedName{Name: testNodeName, Namespace: "default"}, finalResource)).To(Succeed())
+				Expect(finalResource.Name).To(Equal(testNodeName))
 				Expect(finalResource.Spec.Reason).To(Equal(medik8sv1alpha1.SBDRemediationReasonNodeUnresponsive))
 			})
 		})

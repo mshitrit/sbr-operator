@@ -50,10 +50,6 @@ const (
 
 // SBDRemediationSpec defines the desired state of SBDRemediation.
 type SBDRemediationSpec struct {
-	// NodeName is the name of the Kubernetes node to be fenced
-	// +kubebuilder:validation:Required
-	NodeName string `json:"nodeName"`
-
 	// Reason specifies why this node needs to be fenced
 	// +kubebuilder:validation:Enum=HeartbeatTimeout;NodeUnresponsive;ManualFencing
 	// +kubebuilder:default=NodeUnresponsive
@@ -90,7 +86,7 @@ type SBDRemediationStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="Node",type="string",JSONPath=".spec.nodeName"
+// +kubebuilder:printcolumn:name="Node",type="string",JSONPath=".metadata.name"
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Fencing Succeeded",type="string",JSONPath=".status.conditions[?(@.type=='FencingSucceeded')].status"
 // +kubebuilder:printcolumn:name="NodeID",type="integer",JSONPath=".status.nodeID"

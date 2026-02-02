@@ -1371,7 +1371,7 @@ func (s *SBDAgent) ensureRemediationExists(ctx context.Context, nodeName string,
 		return nil
 	}
 
-	name := fmt.Sprintf("sbdremediation-%s", nodeName)
+	name := nodeName
 
 	var existing v1alpha1.SBDRemediation
 	if err := s.k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, &existing); err == nil {
@@ -1391,7 +1391,7 @@ func (s *SBDAgent) ensureRemediationExists(ctx context.Context, nodeName string,
 			if _, ok := all.Items[i].Annotations[controller.SBDAgentAnnotationKey]; ok {
 				// Some SBD-agent remediation already exists → do not create another
 				existingRemediation := all.Items[i]
-				logger.Info("Skipping creating a remediation as an agent remediation already exist for another node", "node skipped", nodeName, "Node with existing remediation", existingRemediation.Spec.NodeName)
+				logger.Info("Skipping creating a remediation as an agent remediation already exist for another node", "node skipped", nodeName, "Node with existing remediation", existingRemediation.Name)
 				return nil
 			}
 		}
@@ -1406,8 +1406,8 @@ func (s *SBDAgent) ensureRemediationExists(ctx context.Context, nodeName string,
 			},
 		},
 		Spec: v1alpha1.SBDRemediationSpec{
-			NodeName: nodeName,
-			Reason:   v1alpha1.SBDRemediationReasonHeartbeatTimeout,
+			// NodeName is now derived from the remediation name (metadata.name)
+			Reason: v1alpha1.SBDRemediationReasonHeartbeatTimeout,
 		},
 	}
 	controllerutil.AddFinalizer(newRem, controller.SBDRemediationFinalizer)
@@ -1434,7 +1434,7 @@ func (s *SBDAgent) deleteSBDAgentRemediationIfStale(ctx context.Context, nodeNam
 		return fmt.Errorf("POD_NAMESPACE is empty; cannot check SBDRemediation staleness")
 	}
 
-	name := fmt.Sprintf("sbdremediation-%s", nodeName)
+	name := nodeName
 
 	var rem v1alpha1.SBDRemediation
 	if err := s.k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, &rem); err != nil {
@@ -1496,7 +1496,7 @@ func (s *SBDAgent) deleteSBDAgentRemediationIfExists(ctx context.Context, nodeNa
 	}
 
 	// Remediation name remains derived from node
-	name := fmt.Sprintf("sbdremediation-%s", nodeName)
+	name := nodeName
 
 	var rem v1alpha1.SBDRemediation
 	if err := s.k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, &rem); err != nil {

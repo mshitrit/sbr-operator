@@ -205,8 +205,11 @@ func (r *SBDRemediationReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, err
 	}
 
+	// Get node name from remediation name (the name is the node name)
+	nodeName := sbdRemediation.Name
+
 	// Don't fence ourselves
-	if sbdRemediation.Spec.NodeName == r.ownNodeName {
+	if nodeName == r.ownNodeName {
 		logger.Info("Found own node in remediation request, skipping")
 		r.emitEventOnly(&sbdRemediation, "Normal", ReasonCompleted,
 			"Skipping remediation for own node")
@@ -219,14 +222,14 @@ func (r *SBDRemediationReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		"sbdremediation.namespace", sbdRemediation.Namespace,
 		"sbdremediation.generation", sbdRemediation.Generation,
 		"sbdremediation.resourceVersion", sbdRemediation.ResourceVersion,
-		"spec.nodeName", sbdRemediation.Spec.NodeName,
+		"nodeName", nodeName,
 		"spec.timeoutSeconds", sbdRemediation.Spec.TimeoutSeconds,
 		"status.ready", sbdRemediation.IsReady(),
 		"status.fencingSucceeded", sbdRemediation.IsFencingSucceeded(),
 	)
 
 	logger.V(1).Info("Starting SBDRemediation reconciliation",
-		"spec.nodeName", sbdRemediation.Spec.NodeName)
+		"nodeName", nodeName)
 
 	// Handle deletion
 	if !sbdRemediation.DeletionTimestamp.IsZero() {
@@ -234,12 +237,12 @@ func (r *SBDRemediationReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			"deletionTimestamp", sbdRemediation.DeletionTimestamp,
 			"finalizers", sbdRemediation.Finalizers)
 		r.emitEventf(&sbdRemediation, "Normal", ReasonFinalizerProcessed,
-			"Processing deletion of SBDRemediation for node '%s'", sbdRemediation.Spec.NodeName)
+			"Processing deletion of SBDRemediation for node '%s'", nodeName)
 		return r.handleDeletion(ctx, &sbdRemediation, logger)
 	}
 
 	logger.V(1).Info("Checking finalizers for SBDRemediation",
-		"spec.nodeName", sbdRemediation.Spec.NodeName)
+		"nodeName", nodeName)
 
 	// Add finalizer if not present
 	if !controllerutil.ContainsFinalizer(&sbdRemediation, SBDRemediationFinalizer) {
@@ -259,7 +262,7 @@ func (r *SBDRemediationReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	// Emit initial event for remediation initiation
 	if len(sbdRemediation.Status.Conditions) == 0 {
 		r.emitEventf(&sbdRemediation, "Normal", ReasonRemediationInitiated,
-			"SBD remediation initiated for node '%s'", sbdRemediation.Spec.NodeName)
+			"SBD remediation initiated for node '%s'", nodeName)
 	}
 
 	logger.V(1).Info("Checking if remediation is ready",
@@ -285,7 +288,7 @@ func (r *SBDRemediationReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		if !fenced {
 			// Still waiting for fencing to complete, requeue to check again
 			logger.V(1).Info("Fencing not yet complete, requeueing for monitoring",
-				"targetNode", sbdRemediation.Spec.NodeName)
+				"targetNode", nodeName)
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
 		// For fresh SBD-agent remediations, delay placing the OOS taint
@@ -297,9 +300,9 @@ func (r *SBDRemediationReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 
 		// Fencing completed successfully - apply OutOfService taint prior to success handling
-		if err := r.ensureOutOfServiceTaint(ctx, sbdRemediation.Spec.NodeName, logger); err != nil {
+		if err := r.ensureOutOfServiceTaint(ctx, nodeName, logger); err != nil {
 			logger.Error(err, "Failed to ensure OutOfService taint on remediated node",
-				"node", sbdRemediation.Spec.NodeName)
+				"node", nodeName)
 			return ctrl.Result{}, err
 		}
 
@@ -333,27 +336,27 @@ func (r *SBDRemediationReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	// Perform the actual fencing operation
 	logger.Info("Starting fencing operation",
-		"targetNode", sbdRemediation.Spec.NodeName,
+		"targetNode", nodeName,
 		"reason", sbdRemediation.Spec.Reason)
 
 	// Ensure the node is cordoned BEFORE setting FencingInProgress
 	node := &corev1.Node{}
-	if err := r.Get(ctx, types.NamespacedName{Name: sbdRemediation.Spec.NodeName}, node); err != nil {
-		logger.Error(err, "Failed to get node before cordon", "node", sbdRemediation.Spec.NodeName)
-		return ctrl.Result{}, fmt.Errorf("failed to get node %s: %w", sbdRemediation.Spec.NodeName, err)
+	if err := r.Get(ctx, types.NamespacedName{Name: nodeName}, node); err != nil {
+		logger.Error(err, "Failed to get node before cordon", "node", nodeName)
+		return ctrl.Result{}, fmt.Errorf("failed to get node %s: %w", nodeName, err)
 	}
 	// Only cordon if not already unschedulable (avoid unnecessary updates)
 	if !node.Spec.Unschedulable {
 		if err := r.markNodeAsUnschedulable(ctx, node, logger); err != nil {
 			logger.Error(err, "Failed to mark node unschedulable prior to fencing",
-				"node", sbdRemediation.Spec.NodeName)
+				"node", nodeName)
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
 	}
 
 	// Update status to indicate fencing is in progress
-	if err := r.updateRemediationCondition(ctx, &sbdRemediation, medik8sv1alpha1.SBDRemediationConditionFencingInProgress, metav1.ConditionTrue, ReasonInProgress, fmt.Sprintf("Fencing node %s", sbdRemediation.Spec.NodeName), logger); err != nil {
+	if err := r.updateRemediationCondition(ctx, &sbdRemediation, medik8sv1alpha1.SBDRemediationConditionFencingInProgress, metav1.ConditionTrue, ReasonInProgress, fmt.Sprintf("Fencing node %s", nodeName), logger); err != nil {
 		logger.Error(err, "Failed to update remediation condition to in progress")
 	}
 
@@ -365,7 +368,7 @@ func (r *SBDRemediationReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	// Fence message written successfully, now monitor for actual fencing completion
 	logger.Info("Fence message written, monitoring for target node fencing completion",
-		"targetNode", sbdRemediation.Spec.NodeName,
+		"targetNode", nodeName,
 		"timeoutSeconds", sbdRemediation.Spec.TimeoutSeconds)
 
 	return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
@@ -374,7 +377,7 @@ func (r *SBDRemediationReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 // executeFencing performs the actual fencing operation via SBD device
 func (r *SBDRemediationReconciler) executeFencing(
 	remediation *medik8sv1alpha1.SBDRemediation, logger logr.Logger) error {
-	targetNodeName := remediation.Spec.NodeName
+	targetNodeName := remediation.Name
 
 	// Get target node ID using node manager
 	targetNodeID, err := r.nodeManager.LookupNodeIDForNode(targetNodeName)
@@ -483,29 +486,30 @@ func (r *SBDRemediationReconciler) writeFenceMessage(targetNodeID uint16,
 // handleDeletion handles the deletion of a SBDRemediation resource
 func (r *SBDRemediationReconciler) handleDeletion(
 	ctx context.Context, sbdRemediation *medik8sv1alpha1.SBDRemediation, logger logr.Logger) (ctrl.Result, error) {
+	nodeName := sbdRemediation.Name
 	// First: uncordon the node so it can accept workloads again
-	if err := r.markNodeAsSchedulable(ctx, sbdRemediation.Spec.NodeName); err != nil {
+	if err := r.markNodeAsSchedulable(ctx, nodeName); err != nil {
 		logger.Error(err, "Failed to mark node schedulable during remediation deletion",
-			"node", sbdRemediation.Spec.NodeName)
+			"node", nodeName)
 		return ctrl.Result{}, err
 	}
 	// Wait until the NodeController removes the unschedulable taint
 	node := &corev1.Node{}
-	if err := r.Get(ctx, types.NamespacedName{Name: sbdRemediation.Spec.NodeName}, node); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to get node %s: %w", sbdRemediation.Spec.NodeName, err)
+	if err := r.Get(ctx, types.NamespacedName{Name: nodeName}, node); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to get node %s: %w", nodeName, err)
 	}
 	if taintExists(node.Spec.Taints, nodeUnschedulableTaint) {
 		return ctrl.Result{RequeueAfter: time.Second}, nil
 	}
 
 	// Second: remove OutOfService taint; on failure, return error to retry
-	if err := r.removeOutOfServiceTaint(ctx, sbdRemediation.Spec.NodeName); err != nil {
+	if err := r.removeOutOfServiceTaint(ctx, nodeName); err != nil {
 		logger.Error(err, "Failed to remove OutOfService taint during remediation deletion",
-			"node", sbdRemediation.Spec.NodeName)
+			"node", nodeName)
 		return ctrl.Result{}, err
 	}
 	r.emitEventOnly(sbdRemediation, "Normal", "OOSTaintRemoved",
-		fmt.Sprintf("Out-of-service taint removed from node '%s'", sbdRemediation.Spec.NodeName))
+		fmt.Sprintf("Out-of-service taint removed from node '%s'", nodeName))
 
 	// Check if our finalizer is present
 	if controllerutil.ContainsFinalizer(sbdRemediation, SBDRemediationFinalizer) {
@@ -557,11 +561,12 @@ func (r *SBDRemediationReconciler) emitEventOnly(remediation *medik8sv1alpha1.SB
 // handleFencingFailure is a helper function to handle fencing failures consistently
 func (r *SBDRemediationReconciler) handleFencingFailure(
 	ctx context.Context, remediation *medik8sv1alpha1.SBDRemediation, err error, logger logr.Logger) {
+	nodeName := remediation.Name
 	logger.Error(err, "Fencing operation failed")
 
 	// Always emit failure event for observability, regardless of whether condition updates succeed
 	r.emitEventOnly(remediation, "Warning", ReasonFencingFailed,
-		fmt.Sprintf("Fencing failed for node '%s': %v", remediation.Spec.NodeName, err))
+		fmt.Sprintf("Fencing failed for node '%s': %v", nodeName, err))
 
 	// Try to update multiple conditions for failure state
 	// Log but don't fail if these updates don't work
@@ -581,14 +586,15 @@ func (r *SBDRemediationReconciler) handleFencingFailure(
 // handleFencingSuccess is a helper function to handle fencing success consistently
 func (r *SBDRemediationReconciler) handleFencingSuccess(
 	ctx context.Context, remediation *medik8sv1alpha1.SBDRemediation, logger logr.Logger) {
+	nodeName := remediation.Name
 	logger.Info("Fencing operation completed successfully",
-		"targetNode", remediation.Spec.NodeName)
+		"targetNode", nodeName)
 
 	// Update multiple conditions for success state
 	if err := r.updateRemediationCondition(ctx, remediation, medik8sv1alpha1.SBDRemediationConditionFencingInProgress, metav1.ConditionFalse, ReasonCompleted, "Fencing completed", logger); err != nil {
 		logger.Error(err, "Failed to update fencing in progress condition")
 	}
-	if err := r.updateRemediationCondition(ctx, remediation, medik8sv1alpha1.SBDRemediationConditionFencingSucceeded, metav1.ConditionTrue, ReasonCompleted, fmt.Sprintf("Node %s fenced successfully", remediation.Spec.NodeName), logger); err != nil {
+	if err := r.updateRemediationCondition(ctx, remediation, medik8sv1alpha1.SBDRemediationConditionFencingSucceeded, metav1.ConditionTrue, ReasonCompleted, fmt.Sprintf("Node %s fenced successfully", nodeName), logger); err != nil {
 		logger.Error(err, "Failed to update fencing succeeded condition")
 	}
 	if err := r.updateRemediationCondition(ctx, remediation, medik8sv1alpha1.SBDRemediationConditionReady, metav1.ConditionTrue, ReasonCompleted, "Remediation completed successfully", logger); err != nil {
@@ -597,10 +603,10 @@ func (r *SBDRemediationReconciler) handleFencingSuccess(
 
 	// Emit success event
 	r.emitEventf(remediation, "Normal", ReasonNodeFenced,
-		"Node '%s' has been fenced successfully", remediation.Spec.NodeName)
+		"Node '%s' has been fenced successfully", nodeName)
 
 	logger.Info("Cleared fencing operation",
-		"targetNode", remediation.Spec.NodeName)
+		"targetNode", nodeName)
 
 }
 
@@ -711,7 +717,7 @@ func (r *SBDRemediationReconciler) SetupWithManager(mgr ctrl.Manager, suffix str
 // checkFencingCompletion checks if the target node has been successfully fenced
 func (r *SBDRemediationReconciler) checkFencingCompletion(
 	ctx context.Context, remediation *medik8sv1alpha1.SBDRemediation, logger logr.Logger) bool {
-	targetNodeName := remediation.Spec.NodeName
+	targetNodeName := remediation.Name
 	timeoutSeconds := remediation.Spec.TimeoutSeconds
 	if timeoutSeconds == 0 {
 		timeoutSeconds = 60 // Default timeout if not specified
