@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: storagebaseddremediationtemplates.medik8s.medik8s.io
+  name: storagebasedremediationtemplates.medik8s.medik8s.io
 spec:
   group: medik8s.medik8s.io
   names:
-    kind: StorageBasedDRemediationTemplate
-    listKind: StorageBasedDRemediationTemplateList
-    plural: storagebaseddremediationtemplates
-    singular: storagebaseddremediationtemplate
+    kind: StorageBasedRemediationTemplate
+    listKind: StorageBasedRemediationTemplateList
+    plural: storagebasedremediationtemplates
+    singular: storagebasedremediationtemplate
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: StorageBasedDRemediationTemplate is the Schema for the sbdremediationtemplates
+        description: StorageBasedRemediationTemplate is the Schema for the sbdremediationtemplates
           API.
         properties:
           apiVersion:
@@ -38,11 +38,11 @@ spec:
           metadata:
             type: object
           spec:
-            description: StorageBasedDRemediationTemplateSpec defines the desired
-              state of StorageBasedDRemediationTemplate.
+            description: StorageBasedRemediationTemplateSpec defines the desired state
+              of StorageBasedRemediationTemplate.
             properties:
               template:
-                description: Template defines the desired state of StorageBasedDRemediationTemplate
+                description: Template defines the desired state of StorageBasedRemediationTemplate
                 properties:
                   spec:
                     description: SBDRemediationSpec defines the desired state of SBDRemediation.
@@ -71,8 +71,8 @@ spec:
             - template
             type: object
           status:
-            description: StorageBasedDRemediationTemplateStatus defines the observed
-              state of StorageBasedDRemediationTemplate.
+            description: StorageBasedRemediationTemplateStatus defines the observed
+              state of StorageBasedRemediationTemplate.
             type: object
         type: object
     served: true

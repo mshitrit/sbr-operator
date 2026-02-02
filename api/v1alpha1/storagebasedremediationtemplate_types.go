@@ -27,18 +27,18 @@ type StorageBasedRemediationTemplateResource struct {
 	Spec SBDRemediationSpec `json:"spec"`
 }
 
-// StorageBasedDRemediationTemplateSpec defines the desired state of StorageBasedDRemediationTemplate.
-type StorageBasedDRemediationTemplateSpec struct {
+// StorageBasedRemediationTemplateSpec defines the desired state of StorageBasedRemediationTemplate.
+type StorageBasedRemediationTemplateSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Template defines the desired state of StorageBasedDRemediationTemplate
+	// Template defines the desired state of StorageBasedRemediationTemplate
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	Template StorageBasedRemediationTemplateResource `json:"template"`
 }
 
-// StorageBasedDRemediationTemplateStatus defines the observed state of StorageBasedDRemediationTemplate.
-type StorageBasedDRemediationTemplateStatus struct {
+// StorageBasedRemediationTemplateStatus defines the observed state of StorageBasedRemediationTemplate.
+type StorageBasedRemediationTemplateStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 }
@@ -46,25 +46,25 @@ type StorageBasedDRemediationTemplateStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
-// StorageBasedDRemediationTemplate is the Schema for the sbdremediationtemplates API.
-// +operator-sdk:csv:customresourcedefinitions:resources={{"StorageBasedDRemediationTemplate","v1alpha1","storagebaseddremediationtemplates"}}
-type StorageBasedDRemediationTemplate struct {
+// StorageBasedRemediationTemplate is the Schema for the sbdremediationtemplates API.
+// +operator-sdk:csv:customresourcedefinitions:resources={{"StorageBasedRemediationTemplate","v1alpha1","storagebasedremediationtemplates"}}
+type StorageBasedRemediationTemplate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   StorageBasedDRemediationTemplateSpec   `json:"spec,omitempty"`
-	Status StorageBasedDRemediationTemplateStatus `json:"status,omitempty"`
+	Spec   StorageBasedRemediationTemplateSpec   `json:"spec,omitempty"`
+	Status StorageBasedRemediationTemplateStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// StorageBasedDRemediationTemplateList contains a list of StorageBasedDRemediationTemplate.
-type StorageBasedDRemediationTemplateList struct {
+// StorageBasedRemediationTemplateList contains a list of StorageBasedRemediationTemplate.
+type StorageBasedRemediationTemplateList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []StorageBasedDRemediationTemplate `json:"items"`
+	Items           []StorageBasedRemediationTemplate `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&StorageBasedDRemediationTemplate{}, &StorageBasedDRemediationTemplateList{})
+	SchemeBuilder.Register(&StorageBasedRemediationTemplate{}, &StorageBasedRemediationTemplateList{})
 }
