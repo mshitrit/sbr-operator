@@ -130,7 +130,7 @@ fix-imports: sort-imports
 test-all: test test-smoke test-e2e ## Run all tests: unit tests, smoke tests, and e2e tests
 
 .PHONY: test
-test: manifests generate fmt vet setup-envtest ## Run tests.
+test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v -E '/(e2e|smoke)') -coverprofile cover.out
 
 .PHONY: sync-test-files
@@ -535,8 +535,10 @@ $(LOCALBIN):
 KUBECTL ?= kubectl
 KIND ?= kind
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
-CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
-ENVTEST ?= $(LOCALBIN)/setup-envtest
+CONTROLLER_GEN = $(CONTROLLER_GEN_DIR)/$(CONTROLLER_GEN_VERSION)/controller-gen
+CONTROLLER_GEN_DIR ?= $(LOCALBIN)/controller-gen
+ENVTEST = $(ENVTEST_DIR)/$(ENVTEST_VERSION)/setup-envtest
+ENVTEST_DIR ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
 GINKGO ?= $(LOCALBIN)/ginkgo
 SORT_IMPORTS_DIR ?= $(LOCALBIN)/sort-imports
@@ -545,7 +547,7 @@ OPM ?= $(LOCALBIN)/opm
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.6.0
-CONTROLLER_TOOLS_VERSION ?= v0.18.0
+CONTROLLER_GEN_VERSION ?= v0.18.0
 #ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script (i.e. release-0.20)
 ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
 #ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries (i.e. 1.31)
@@ -587,22 +589,16 @@ $(KUSTOMIZE): $(LOCALBIN)
 	$(call go-install-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v5,$(KUSTOMIZE_VERSION))
 
 .PHONY: controller-gen
-controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
-$(CONTROLLER_GEN): $(LOCALBIN)
-	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen,$(CONTROLLER_TOOLS_VERSION))
+controller-gen: ## Download controller-gen locally if necessary.
+	$(call go-install-tool,$(CONTROLLER_GEN),$(CONTROLLER_GEN_DIR),sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION})
 
-.PHONY: setup-envtest
-setup-envtest: envtest ## Download the binaries required for ENVTEST in the local bin directory.
-	@echo "Setting up envtest binaries for Kubernetes version $(ENVTEST_K8S_VERSION)..."
-	@$(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path || { \
-		echo "Error: Failed to set up envtest binaries for version $(ENVTEST_K8S_VERSION)."; \
-		exit 1; \
-	}
 
-.PHONY: envtest
-envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
-$(ENVTEST): $(LOCALBIN)
-	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest,$(ENVTEST_VERSION))
+.PHONY: envtest ## This library helps write integration tests for your controllers by setting up and starting an instance of etcd and the Kubernetes API server, without kubelet, controller-manager or other components.
+envtest: ## Download envtest-setup locally if necessary.
+ifneq ($(wildcard $(ENVTEST_DIR)),)
+	chmod -R +w $(ENVTEST_DIR)
+endif
+	$(call go-install-tool,$(ENVTEST),$(ENVTEST_DIR),sigs.k8s.io/controller-runtime/tools/setup-envtest@${ENVTEST_VERSION})
 
 .PHONY: golangci-lint
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
