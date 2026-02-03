@@ -45,7 +45,8 @@ spec:
                 description: Template defines the desired state of StorageBasedRemediationTemplate
                 properties:
                   spec:
-                    description: SBDRemediationSpec defines the desired state of SBDRemediation.
+                    description: StorageBasedRemediationSpec defines the desired state
+                      of StorageBasedRemediation.
                     properties:
                       reason:
                         default: NodeUnresponsive

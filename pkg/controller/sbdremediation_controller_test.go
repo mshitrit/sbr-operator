@@ -39,8 +39,8 @@ import (
 // Note: Controller tests simplified since agent-based fencing architecture
 // moved device access and fencing logic to the SBD agents
 
-var _ = Describe("SBDRemediation Controller", func() {
-	Context("When reconciling a SBDRemediation resource", func() {
+var _ = Describe("StorageBasedRemediation Controller", func() {
+	Context("When reconciling a StorageBasedRemediation resource", func() {
 		var (
 			reconciler     *SBDRemediationReconciler
 			ctx            context.Context
@@ -99,15 +99,15 @@ var _ = Describe("SBDRemediation Controller", func() {
 			Expect(result).To(Equal(reconcile.Result{}))
 		})
 
-		It("should add finalizer to new SBDRemediation resources", func() {
-			By("Creating a SBDRemediation resource")
+		It("should add finalizer to new StorageBasedRemediation resources", func() {
+			By("Creating a StorageBasedRemediation resource")
 			testNodeName := "worker-1"
-			resource := &medik8sv1alpha1.SBDRemediation{
+			resource := &medik8sv1alpha1.StorageBasedRemediation{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testNodeName,
 					Namespace: "default",
 				},
-				Spec: medik8sv1alpha1.SBDRemediationSpec{
+				Spec: medik8sv1alpha1.StorageBasedRemediationSpec{
 					Reason: medik8sv1alpha1.SBDRemediationReasonHeartbeatTimeout,
 				},
 			}
@@ -120,7 +120,7 @@ var _ = Describe("SBDRemediation Controller", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Verifying finalizer was added")
-			updatedResource := &medik8sv1alpha1.SBDRemediation{}
+			updatedResource := &medik8sv1alpha1.StorageBasedRemediation{}
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: testNodeName, Namespace: "default"}, updatedResource)).To(Succeed())
 
 			// Note: In agent-based architecture, the controller primarily adds finalizers
@@ -128,14 +128,14 @@ var _ = Describe("SBDRemediation Controller", func() {
 		})
 
 		It("should handle deletion properly", func() {
-			By("Creating a SBDRemediation resource")
+			By("Creating a StorageBasedRemediation resource")
 			testNodeName := "worker-2"
-			resource := &medik8sv1alpha1.SBDRemediation{
+			resource := &medik8sv1alpha1.StorageBasedRemediation{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testNodeName,
 					Namespace: "default",
 				},
-				Spec: medik8sv1alpha1.SBDRemediationSpec{
+				Spec: medik8sv1alpha1.StorageBasedRemediationSpec{
 					Reason: medik8sv1alpha1.SBDRemediationReasonManualFencing,
 				},
 			}
@@ -171,15 +171,15 @@ var _ = Describe("SBDRemediation Controller", func() {
 		})
 
 		It("should handle timeoutSeconds field correctly", func() {
-			By("Creating SBDRemediation with custom timeout")
+			By("Creating StorageBasedRemediation with custom timeout")
 			testNodeName := "worker-3"
 			customTimeout := int32(120)
-			resource := &medik8sv1alpha1.SBDRemediation{
+			resource := &medik8sv1alpha1.StorageBasedRemediation{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testNodeName,
 					Namespace: "default",
 				},
-				Spec: medik8sv1alpha1.SBDRemediationSpec{
+				Spec: medik8sv1alpha1.StorageBasedRemediationSpec{
 					Reason:         medik8sv1alpha1.SBDRemediationReasonManualFencing,
 					TimeoutSeconds: customTimeout,
 				},
@@ -188,7 +188,7 @@ var _ = Describe("SBDRemediation Controller", func() {
 
 			By("Verifying timeout is preserved in spec")
 			Eventually(func() int32 {
-				updatedResource := &medik8sv1alpha1.SBDRemediation{}
+				updatedResource := &medik8sv1alpha1.StorageBasedRemediation{}
 				err := k8sClient.Get(ctx, types.NamespacedName{Name: testNodeName, Namespace: "default"}, updatedResource)
 				if err != nil {
 					return 0
@@ -197,16 +197,16 @@ var _ = Describe("SBDRemediation Controller", func() {
 			}, 5*time.Second, 100*time.Millisecond).Should(Equal(customTimeout))
 		})
 
-		Context("with valid SBDRemediation spec for a fake node", func() {
+		Context("with valid StorageBasedRemediation spec for a fake node", func() {
 			It("should handle normal processing flow", func() {
-				By("Creating a well-formed SBDRemediation resource")
+				By("Creating a well-formed StorageBasedRemediation resource")
 				testNodeName := "fake-node-1"
-				resource := &medik8sv1alpha1.SBDRemediation{
+				resource := &medik8sv1alpha1.StorageBasedRemediation{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      testNodeName,
 						Namespace: "default",
 					},
-					Spec: medik8sv1alpha1.SBDRemediationSpec{
+					Spec: medik8sv1alpha1.StorageBasedRemediationSpec{
 						Reason:         medik8sv1alpha1.SBDRemediationReasonNodeUnresponsive,
 						TimeoutSeconds: 300,
 					},
@@ -237,23 +237,23 @@ var _ = Describe("SBDRemediation Controller", func() {
 				Expect(err).To(HaveOccurred())
 
 				By("Verifying the resource exists and is processable")
-				finalResource := &medik8sv1alpha1.SBDRemediation{}
+				finalResource := &medik8sv1alpha1.StorageBasedRemediation{}
 				Expect(k8sClient.Get(ctx, types.NamespacedName{Name: testNodeName, Namespace: "default"}, finalResource)).To(Succeed())
 				Expect(finalResource.Name).To(Equal(testNodeName))
 				Expect(finalResource.Spec.Reason).To(Equal(medik8sv1alpha1.SBDRemediationReasonNodeUnresponsive))
 			})
 		})
 
-		Context("with valid SBDRemediation spec for a real node", func() {
+		Context("with valid StorageBasedRemediation spec for a real node", func() {
 			It("should handle normal processing flow", func() {
-				By("Creating a well-formed SBDRemediation resource")
+				By("Creating a well-formed StorageBasedRemediation resource")
 				testNodeName := "worker-4"
-				resource := &medik8sv1alpha1.SBDRemediation{
+				resource := &medik8sv1alpha1.StorageBasedRemediation{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      testNodeName,
 						Namespace: "default",
 					},
-					Spec: medik8sv1alpha1.SBDRemediationSpec{
+					Spec: medik8sv1alpha1.StorageBasedRemediationSpec{
 						Reason:         medik8sv1alpha1.SBDRemediationReasonNodeUnresponsive,
 						TimeoutSeconds: 300,
 					},
@@ -279,7 +279,7 @@ var _ = Describe("SBDRemediation Controller", func() {
 				}
 
 				By("Verifying the resource exists and is processable")
-				finalResource := &medik8sv1alpha1.SBDRemediation{}
+				finalResource := &medik8sv1alpha1.StorageBasedRemediation{}
 				Expect(k8sClient.Get(ctx, types.NamespacedName{Name: testNodeName, Namespace: "default"}, finalResource)).To(Succeed())
 				Expect(finalResource.Name).To(Equal(testNodeName))
 				Expect(finalResource.Spec.Reason).To(Equal(medik8sv1alpha1.SBDRemediationReasonNodeUnresponsive))

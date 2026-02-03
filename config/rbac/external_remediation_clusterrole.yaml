@@ -16,7 +16,7 @@ rules:
   - apiGroups:
       - medik8s.medik8s.io
     resources:
-      - sbdremediations
+      - storagebasedremediations
     verbs:
       - get
       - list
