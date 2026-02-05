@@ -3,7 +3,7 @@ kind: CustomResourceDefinition
 metadata:
   name: sbdremediations.medik8s.medik8s.io
   annotations:
-    api-approved.kubernetes.io: "https://github.com/medik8s/sbd-operator"
+    api-approved.kubernetes.io: "https://github.com/medik8s/storage-based-remediation"
 spec:
   group: medik8s.medik8s.io
   versions:

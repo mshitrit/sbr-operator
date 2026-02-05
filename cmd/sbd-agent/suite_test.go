@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	// +kubebuilder:scaffold:imports
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -33,8 +34,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	medik8sv1alpha1 "github.com/medik8s/sbd-operator/api/v1alpha1"
-	// +kubebuilder:scaffold:imports
+	medik8sv1alpha1 "github.com/medik8s/storage-based-remediation/api/v1alpha1"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to

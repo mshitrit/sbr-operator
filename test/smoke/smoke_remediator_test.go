@@ -30,12 +30,12 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	medik8sv1alpha1 "github.com/medik8s/sbd-operator/api/v1alpha1"
-	"github.com/medik8s/sbd-operator/test/utils"
+	medik8sv1alpha1 "github.com/medik8s/storage-based-remediation/api/v1alpha1"
+	"github.com/medik8s/storage-based-remediation/test/utils"
 )
 
 // metricsServiceName is the name of the metrics service of the project
-const metricsServiceName = "sbd-operator-controller-manager-metrics-service"
+const metricsServiceName = "storage-based-remediation-operator-controller-manager-metrics-service"
 
 // metricsRoleBindingName is the name of the RBAC that will be created to allow get the metrics data
 const metricsRoleBindingName = "sbd-operator-metrics-binding"
@@ -59,8 +59,8 @@ var _ = Describe("SBD Remediation Smoke Tests", Label("Smoke", "Remediation"), f
 		specReport := CurrentSpecReport()
 		if specReport.Failed() {
 			systemNamespace := &utils.TestNamespace{
-				Name:         "sbd-operator-system",
-				ArtifactsDir: "testrun/sbd-operator-system",
+				Name:         "storage-based-remediation-operator-system",
+				ArtifactsDir: "testrun/storage-based-remediation-operator-system",
 				Clients:      testClients,
 			}
 			utils.DescribeEnvironment(testClients, systemNamespace)

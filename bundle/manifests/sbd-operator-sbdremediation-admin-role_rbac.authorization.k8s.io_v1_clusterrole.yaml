@@ -4,7 +4,7 @@ metadata:
   creationTimestamp: null
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: sbd-operator
+    app.kubernetes.io/name: storage-based-remediation-operator
   name: sbd-operator-sbdremediation-admin-role
 rules:
 - apiGroups:

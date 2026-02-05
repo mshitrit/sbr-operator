@@ -44,7 +44,7 @@ package main
 
 import (
     "fmt"
-    "github.com/medik8s/sbd-operator/pkg/sbdprotocol"
+    "github.com/medik8s/storage-based-remediation/pkg/sbdprotocol"
 )
 
 func main() {
@@ -82,7 +82,7 @@ package main
 
 import (
     "fmt"
-    "github.com/medik8s/sbd-operator/pkg/sbdprotocol"
+    "github.com/medik8s/storage-based-remediation/pkg/sbdprotocol"
 )
 
 func main() {
@@ -126,7 +126,7 @@ package main
 
 import (
     "fmt"
-    "github.com/medik8s/sbd-operator/pkg/sbdprotocol"
+    "github.com/medik8s/storage-based-remediation/pkg/sbdprotocol"
 )
 
 func main() {

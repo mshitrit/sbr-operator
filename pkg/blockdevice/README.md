@@ -89,7 +89,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/medik8s/sbd-operator/pkg/blockdevice"
+    "github.com/medik8s/storage-based-remediation/pkg/blockdevice"
 )
 
 func main() {

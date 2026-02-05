@@ -9,5 +9,5 @@ roleRef:
   name: sbd-operator-metrics-auth-role
 subjects:
 - kind: ServiceAccount
-  name: sbd-operator-sbd-operator-controller-manager
-  namespace: sbd-operator-system
+  name: storage-based-remediation-operator-controller-manager
+  namespace: system

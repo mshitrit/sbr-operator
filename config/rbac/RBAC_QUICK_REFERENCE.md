@@ -59,9 +59,9 @@ kubectl auth can-i list nodes --as=system:serviceaccount:sbd-system:sbd-agent
 kubectl auth can-i delete nodes --as=system:serviceaccount:sbd-system:sbd-agent  # Should be "no"
 
 # Test SBD Operator permissions
-kubectl auth can-i create daemonsets --as=system:serviceaccount:sbd-system:sbd-operator-controller-manager
-kubectl auth can-i update sbdremediations/status --as=system:serviceaccount:sbd-system:sbd-operator-controller-manager
-kubectl auth can-i delete nodes --as=system:serviceaccount:sbd-system:sbd-operator-controller-manager  # Should be "no"
+kubectl auth can-i create daemonsets --as=system:serviceaccount:sbd-system:storage-based-remediation-operator-controller-manager
+kubectl auth can-i update sbdremediations/status --as=system:serviceaccount:sbd-system:storage-based-remediation-operator-controller-manager
+kubectl auth can-i delete nodes --as=system:serviceaccount:sbd-system:storage-based-remediation-operator-controller-manager  # Should be "no"
 ```
 
 ## Troubleshooting

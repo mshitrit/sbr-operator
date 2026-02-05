@@ -7,7 +7,7 @@ metadata:
   name: sbd-with-odf-cephfs
   namespace: sbd-system
   labels:
-    app.kubernetes.io/name: sbd-operator
+    app.kubernetes.io/name: storage-based-remediation-operator
     app.kubernetes.io/instance: sbd-with-odf
     storage.medik8s.io/type: cephfs
   annotations:
@@ -51,7 +51,7 @@ metadata:
   name: sbd-with-odf-strict
   namespace: sbd-system
   labels:
-    app.kubernetes.io/name: sbd-operator
+    app.kubernetes.io/name: storage-based-remediation-operator
     app.kubernetes.io/instance: sbd-with-odf-strict
     storage.medik8s.io/type: cephfs
     storage.medik8s.io/mode: strict-coherency
@@ -87,7 +87,7 @@ metadata:
   name: sbd-tenant-a
   namespace: sbd-system
   labels:
-    app.kubernetes.io/name: sbd-operator
+    app.kubernetes.io/name: storage-based-remediation-operator
     app.kubernetes.io/instance: sbd-tenant-a
     tenant: "tenant-a"
     storage.medik8s.io/type: cephfs
@@ -111,7 +111,7 @@ metadata:
   name: sbd-dev-test
   namespace: sbd-system
   labels:
-    app.kubernetes.io/name: sbd-operator
+    app.kubernetes.io/name: storage-based-remediation-operator
     app.kubernetes.io/instance: sbd-dev-test
     environment: development
     storage.medik8s.io/type: cephfs

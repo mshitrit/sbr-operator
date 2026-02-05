@@ -7,7 +7,7 @@ metadata:
   name: sbd-agent-privileged
   labels:
     app: sbd-agent
-    app.kubernetes.io/name: sbd-operator
+    app.kubernetes.io/name: storage-based-remediation-operator
     app.kubernetes.io/component: sbd-agent
   annotations:
     kubernetes.io/description: "SecurityContextConstraints for SBD Agent pods that require privileged access to hardware watchdog and block devices"
@@ -54,7 +54,7 @@ metadata:
   name: sbd-agent-scc-user
   labels:
     app: sbd-agent
-    app.kubernetes.io/name: sbd-operator
+    app.kubernetes.io/name: storage-based-remediation-operator
     app.kubernetes.io/component: sbd-agent
 rules:
 - apiGroups:
@@ -74,7 +74,7 @@ metadata:
   name: sbd-agent-scc-user
   labels:
     app: sbd-agent
-    app.kubernetes.io/name: sbd-operator
+    app.kubernetes.io/name: storage-based-remediation-operator
     app.kubernetes.io/component: sbd-agent
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -93,7 +93,7 @@ kind: ClusterRole
 metadata:
   name: system:openshift:scc:sbd-operator-sbd-agent-privileged
   labels:
-    app.kubernetes.io/name: sbd-operator
+    app.kubernetes.io/name: storage-based-remediation-operator
     app.kubernetes.io/component: sbd-agent
 rules:
 - apiGroups:
@@ -112,7 +112,7 @@ kind: ClusterRoleBinding
 metadata:
   name: system:openshift:scc:sbd-operator-sbd-agent-privileged:sbd-agent
   labels:
-    app.kubernetes.io/name: sbd-operator
+    app.kubernetes.io/name: storage-based-remediation-operator
     app.kubernetes.io/component: sbd-agent
 roleRef:
   apiGroup: rbac.authorization.k8s.io
