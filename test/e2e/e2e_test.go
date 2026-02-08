@@ -125,13 +125,6 @@ var _ = Describe("SBD Operator", Ordered, Label("e2e"), func() {
 			}
 		})
 
-		It("should not trigger fencing when kubelet communication is interrupted", func() {
-			if len(clusterInfo.WorkerNodes) < 3 {
-				Skip("Test requires at least 3 worker nodes for safe communication disruption testing")
-			}
-			testKubeletCommunicationFailure(clusterInfo)
-		})
-
 		It("should handle basic SBD configuration and agent deployment", func() {
 			if len(clusterInfo.WorkerNodes) < 3 {
 				Skip("Test requires at least 3 worker nodes")
@@ -152,6 +145,13 @@ var _ = Describe("SBD Operator", Ordered, Label("e2e"), func() {
 				Skip("Test requires at least 3 worker nodes")
 			}
 			testIncompatibleStorageClass()
+		})
+
+		It("should not trigger fencing when kubelet communication is interrupted", func() {
+			if len(clusterInfo.WorkerNodes) < 3 {
+				Skip("Test requires at least 3 worker nodes for safe communication disruption testing")
+			}
+			testKubeletCommunicationFailure(clusterInfo)
 		})
 
 		It("should handle node remediation", func() {
