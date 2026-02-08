@@ -30,10 +30,10 @@ IMG ?= $(IMAGE_REGISTRY)/storage-based-remediation-operator:$(IMAGE_TAG)
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
-BUNDLE_IMG ?= $(IMAGE_REGISTRY)/storage-based-remediation-bundle:$(IMAGE_TAG)
+BUNDLE_IMG ?= $(IMAGE_REGISTRY)/storage-based-remediation-operator-bundle:$(IMAGE_TAG)
 
 # The image tag given to the resulting catalog image (e.g. make catalog-build CATALOG_IMG=example.com/operator-catalog:v0.2.0).
-CATALOG_IMG ?= $(IMAGE_REGISTRY)/storage-based-remediation-catalog:$(IMAGE_TAG)
+CATALOG_IMG ?= $(IMAGE_REGISTRY)/storage-based-remediation-operator-catalog:$(IMAGE_TAG)
 
 AGENT_IMG ?= $(IMAGE_REGISTRY)/storage-based-remediation-agent:$(IMAGE_TAG)
 
