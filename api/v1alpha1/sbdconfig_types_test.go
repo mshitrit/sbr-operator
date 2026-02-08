@@ -1128,37 +1128,37 @@ func TestGetImageWithOperatorImage(t *testing.T) {
 			name:          "no image specified - derive from operator image with tag",
 			spec:          SBDConfigSpec{},
 			operatorImage: "quay.io/medik8s/sbd-operator:v1.2.3",
-			expected:      "quay.io/medik8s/sbd-agent:v1.2.3",
+			expected:      "quay.io/medik8s/storage-based-remediation-agent:v1.2.3",
 		},
 		{
 			name:          "no image specified - derive from operator image without tag",
 			spec:          SBDConfigSpec{},
 			operatorImage: "quay.io/medik8s/sbd-operator",
-			expected:      "quay.io/medik8s/sbd-agent:latest",
+			expected:      "quay.io/medik8s/storage-based-remediation-agent:latest",
 		},
 		{
 			name:          "no image specified - simple operator image with tag",
 			spec:          SBDConfigSpec{},
 			operatorImage: "sbd-operator:v1.0.0",
-			expected:      "sbd-agent:v1.0.0",
+			expected:      "storage-based-remediation-agent:v1.0.0",
 		},
 		{
 			name:          "no image specified - simple operator image without tag",
 			spec:          SBDConfigSpec{},
 			operatorImage: "sbd-operator",
-			expected:      "sbd-agent:latest",
+			expected:      "storage-based-remediation-agent:latest",
 		},
 		{
 			name:          "no image specified - empty operator image",
 			spec:          SBDConfigSpec{},
 			operatorImage: "",
-			expected:      "sbd-agent:latest",
+			expected:      "storage-based-remediation-agent:latest",
 		},
 		{
 			name:          "no image specified - complex registry path",
 			spec:          SBDConfigSpec{},
 			operatorImage: "registry.example.com:5000/my-org/my-project/sbd-operator:dev-123",
-			expected:      "registry.example.com:5000/my-org/my-project/sbd-agent:dev-123",
+			expected:      "registry.example.com:5000/my-org/my-project/storage-based-remediation-agent:dev-123",
 		},
 	}
 

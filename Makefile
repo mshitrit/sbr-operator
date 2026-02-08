@@ -4,7 +4,7 @@ export IMAGE_REGISTRY
 
 # Quay registry configuration - primary image naming system
 OPERATOR_NAME ?= storage-based-remediation
-AGENT_NAME ?= sbd-agent
+AGENT_NAME ?= storage-based-remediation-agent
 QUAY_OPERATOR_NAME ?= $(IMAGE_REGISTRY)/$(OPERATOR_NAME)
 QUAY_AGENT_IMG ?= $(IMAGE_REGISTRY)/$(AGENT_NAME)
 
@@ -35,7 +35,7 @@ BUNDLE_IMG ?= $(IMAGE_REGISTRY)/storage-based-remediation-bundle:$(IMAGE_TAG)
 # The image tag given to the resulting catalog image (e.g. make catalog-build CATALOG_IMG=example.com/operator-catalog:v0.2.0).
 CATALOG_IMG ?= $(IMAGE_REGISTRY)/storage-based-remediation-catalog:$(IMAGE_TAG)
 
-AGENT_IMG ?= $(IMAGE_REGISTRY)/sbd-agent:$(IMAGE_TAG)
+AGENT_IMG ?= $(IMAGE_REGISTRY)/storage-based-remediation-agent:$(IMAGE_TAG)
 
 # Build information
 BUILD_DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")

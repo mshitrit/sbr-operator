@@ -104,7 +104,7 @@ type SBDConfigSpec struct {
 	SbdWatchdogPath string `json:"sbdWatchdogPath,omitempty"`
 
 	// Image is the container image for the SBD agent DaemonSet
-	// If not specified, defaults to sbd-agent from the same registry/org/tag as the operator
+	// If not specified, defaults to storage-based-remediation-agent from the same registry/org/tag as the operator
 	// +optional
 	Image string `json:"image,omitempty"`
 
@@ -619,48 +619,31 @@ func (s *SBDConfigSpec) ValidateAll() error {
 	return nil
 }
 
-// deriveAgentImageFromOperator derives the sbd-agent image from the operator image
+// deriveAgentImageFromOperator derives the storage-based-remediation-agent image from the operator image
 func deriveAgentImageFromOperator(operatorImage string) string {
+	const agentImageName = "storage-based-remediation-agent"
+
 	// Handle empty operator image
 	if operatorImage == "" {
-		return "sbd-agent:latest"
+		return agentImageName + ":latest"
 	}
 
-	// Replace the image name with sbd-agent while preserving registry/org/tag
-	// Example: registry.io/org/sbd-operator:v1.0.0 -> registry.io/org/sbd-agent:v1.0.0
+	// Preserve registry/org and tag; use agent image name
+	// Example: registry.io/org/sbd-operator:v1.0.0 -> registry.io/org/storage-based-remediation-agent:v1.0.0
 	lastSlash := strings.LastIndex(operatorImage, "/")
+	var tag string
+	if idx := strings.LastIndex(operatorImage, ":"); idx != -1 && (lastSlash == -1 || idx > lastSlash) {
+		tag = operatorImage[idx+1:]
+	} else {
+		tag = "latest"
+	}
+
 	if lastSlash == -1 {
-		// No slash found, handle simple image names like "sbd-operator:v1.0.0" or "sbd-operator"
-		agentImage := strings.Replace(operatorImage, "sbd-operator", "sbd-agent", 1)
-		if agentImage == operatorImage {
-			// If no replacement happened, default to sbd-agent
-			agentImage = "sbd-agent"
-		}
-
-		// Add :latest tag if no tag is present
-		if !strings.Contains(agentImage, ":") {
-			agentImage += ":latest"
-		}
-
-		return agentImage
+		return agentImageName + ":" + tag
 	}
 
 	prefix := operatorImage[:lastSlash+1]
-	suffix := operatorImage[lastSlash+1:]
-
-	// Replace operator with agent in the image name
-	agentSuffix := strings.Replace(suffix, "sbd-operator", "sbd-agent", 1)
-	if agentSuffix == suffix {
-		// If no replacement happened, default to sbd-agent
-		agentSuffix = "sbd-agent"
-	}
-
-	// Add :latest tag if no tag is present
-	if !strings.Contains(agentSuffix, ":") {
-		agentSuffix += ":latest"
-	}
-
-	return prefix + agentSuffix
+	return prefix + agentImageName + ":" + tag
 }
 
 // SBDConfigStatus defines the observed state of SBDConfig.

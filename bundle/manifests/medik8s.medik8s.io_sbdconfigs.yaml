@@ -42,7 +42,7 @@ spec:
               image:
                 description: |-
                   Image is the container image for the SBD agent DaemonSet
-                  If not specified, defaults to sbd-agent from the same registry/org/tag as the operator
+                  If not specified, defaults to storage-based-remediation-agent from the same registry/org/tag as the operator
                 type: string
               imagePullPolicy:
                 default: IfNotPresent

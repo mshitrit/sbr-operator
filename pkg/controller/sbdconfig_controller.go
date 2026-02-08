@@ -81,7 +81,7 @@ const (
 	SBDOperatorSCCName = "sbd-operator-sbd-agent-privileged"
 
 	// Default image constants
-	DefaultSBDAgentImage = "sbd-agent:latest"
+	DefaultSBDAgentImage = "storage-based-remediation-agent:latest"
 	SBDOperatorName      = "sbd-operator"
 
 	// Retry configuration constants for SBDConfig controller

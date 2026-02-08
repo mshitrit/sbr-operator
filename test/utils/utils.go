@@ -427,7 +427,7 @@ func GetAgentImage() string {
 		version = "smoke-test"
 	}
 
-	return fmt.Sprintf("%s/%s/sbd-agent:%s", registry, org, version)
+	return fmt.Sprintf("%s/%s/storage-based-remediation-agent:%s", registry, org, version)
 }
 
 // GetAWSInstanceIDForNode finds the AWS EC2 instance ID for a given Kubernetes node name

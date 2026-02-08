@@ -521,7 +521,7 @@ var _ = Describe("SBDConfig Controller", func() {
 				}, daemonSet)
 			}, timeout, interval).Should(Succeed())
 
-			Expect(daemonSet.Spec.Template.Spec.Containers[0].Image).To(Equal("sbd-agent:latest"))
+			Expect(daemonSet.Spec.Template.Spec.Containers[0].Image).To(Equal("storage-based-remediation-agent:latest"))
 			Expect(daemonSet.Namespace).To(Equal(namespace))
 		})
 	})
