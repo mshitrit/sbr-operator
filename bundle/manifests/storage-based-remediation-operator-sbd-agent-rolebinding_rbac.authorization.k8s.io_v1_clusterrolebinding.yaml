@@ -7,12 +7,12 @@ metadata:
     app.kubernetes.io/managed-by: sbd-operator
     app.kubernetes.io/name: sbd-agent
     app.kubernetes.io/part-of: storage-based-remediation-operator
-  name: sbd-operator-sbd-agent-rolebinding
+  name: storage-based-remediation-operator-sbd-agent-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: sbd-operator-sbd-agent-role
+  name: storage-based-remediation-operator-sbd-agent-role
 subjects:
 - kind: ServiceAccount
-  name: sbd-operator-sbd-agent
+  name: storage-based-remediation-operator-sbd-agent
   namespace: storage-based-remediation-operator-system

@@ -6,7 +6,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: storage-based-remediation-operator
     control-plane: controller-manager
-  name: sbd-operator-controller-manager-metrics-service
+  name: storage-based-remediation-operator-controller-manager-metrics-service
 spec:
   ports:
   - name: https

@@ -5,17 +5,23 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: storage-based-remediation-operator
-  name: sbd-operator-sbdremediationtemplate-admin-role
+  name: storage-based-remediation-operator-sbdconfig-editor-role
 rules:
 - apiGroups:
   - medik8s.medik8s.io
   resources:
-  - sbdremediationtemplates
+  - sbdconfigs
   verbs:
-  - '*'
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - medik8s.medik8s.io
   resources:
-  - sbdremediationtemplates/status
+  - sbdconfigs/status
   verbs:
   - get
