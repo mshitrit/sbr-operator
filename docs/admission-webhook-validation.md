@@ -80,7 +80,7 @@ When validation fails, you'll see descriptive error messages:
 ```bash
 $ kubectl apply -f overlapping-sbdconfig.yaml
 error validating data: ValidationError(SBDConfig): 
-node selector validation failed: SBDConfig node selector overlaps with existing SBDConfig 'existing-config' in namespace 'storage-based-remediation-operator-system'. 
+node selector validation failed: SBDConfig node selector overlaps with existing SBDConfig 'existing-config' in namespace 'sbd-operator-system'. 
 Each node can only be managed by one SBDConfig to prevent slot assignment conflicts. 
 Current selector: map[node-role.kubernetes.io/worker:], Conflicting selector: map[node-role.kubernetes.io/worker:]
 ```
@@ -110,7 +110,7 @@ See the [cert-manager documentation](https://cert-manager.io/) for production ce
 
 1. Check webhook pod is running:
    ```bash
-   kubectl get pods -n storage-based-remediation-operator-system
+   kubectl get pods -n sbd-operator-system
    ```
 
 2. Check webhook configuration:
@@ -120,19 +120,19 @@ See the [cert-manager documentation](https://cert-manager.io/) for production ce
 
 3. Check webhook logs:
    ```bash
-   kubectl logs -n storage-based-remediation-operator-system deployment/storage-based-remediation-operator-controller-manager
+   kubectl logs -n sbd-operator-system deployment/sbd-operator-controller-manager
    ```
 
 ### Certificate Issues
 
 1. Verify webhook service exists:
    ```bash
-   kubectl get service -n storage-based-remediation-operator-system webhook-service
+   kubectl get service -n sbd-operator-system webhook-service
    ```
 
 2. Check certificate secret:
    ```bash
-   kubectl get secret -n storage-based-remediation-operator-system webhook-server-certs
+   kubectl get secret -n sbd-operator-system webhook-server-certs
    ```
 
 ### Bypassing Validation (Emergency)

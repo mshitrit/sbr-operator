@@ -40,9 +40,9 @@ RUN export GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"
     CGO_ENABLED=${CGO_ENABLED:-0} GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} go build \
         -a -installsuffix cgo \
         -ldflags="-w -s -extldflags '-static' \
-        -X 'github.com/medik8s/storage-based-remediation/pkg/version.GitCommit=$GIT_COMMIT' \
-        -X 'github.com/medik8s/storage-based-remediation/pkg/version.GitDescribe=$GIT_DESCRIBE' \
-        -X 'github.com/medik8s/storage-based-remediation/pkg/version.BuildDate=$BUILD_DATE'" \
+        -X 'github.com/medik8s/sbd-operator/pkg/version.GitCommit=$GIT_COMMIT' \
+        -X 'github.com/medik8s/sbd-operator/pkg/version.GitDescribe=$GIT_DESCRIBE' \
+        -X 'github.com/medik8s/sbd-operator/pkg/version.BuildDate=$BUILD_DATE'" \
         -o ./bin/manager \
         ./cmd/main.go
 

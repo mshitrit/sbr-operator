@@ -123,7 +123,7 @@ To debug storage class validation issues:
 
 2. **Check Controller Logs:**
    ```bash
-   kubectl logs -n storage-based-remediation-operator-system deployment/storage-based-remediation-operator-controller-manager
+   kubectl logs -n sbd-operator-system deployment/sbd-operator-controller-manager
    ```
 
 3. **Check PVC Status:**

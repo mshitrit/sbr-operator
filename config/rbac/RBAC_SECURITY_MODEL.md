@@ -49,7 +49,7 @@ The SBD Agent operates with minimal Kubernetes permissions because its primary f
 
 ## SBD Operator RBAC
 
-**ServiceAccount**: `storage-based-remediation-operator-controller-manager`
+**ServiceAccount**: `sbd-operator-controller-manager`
 **Role**: `sbd-operator-manager-role` (ClusterRole)
 
 ### Permissions Granted
@@ -174,7 +174,7 @@ RBAC permissions ensure all actions are:
 kubectl auth can-i get pods --as=system:serviceaccount:sbd-system:sbd-agent
 
 # Check SBD Operator permissions
-kubectl auth can-i create daemonsets --as=system:serviceaccount:sbd-system:storage-based-remediation-operator-controller-manager
+kubectl auth can-i create daemonsets --as=system:serviceaccount:sbd-system:sbd-operator-controller-manager
 
 # Verify role bindings
 kubectl get clusterrolebindings | grep sbd

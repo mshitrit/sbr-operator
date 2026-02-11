@@ -3,8 +3,8 @@ IMAGE_REGISTRY ?= quay.io/medik8s
 export IMAGE_REGISTRY
 
 # Quay registry configuration - primary image naming system
-OPERATOR_NAME ?= storage-based-remediation
-AGENT_NAME ?= storage-based-remediation-agent
+OPERATOR_NAME ?= sbd-operator
+AGENT_NAME ?= sbd-agent
 QUAY_OPERATOR_NAME ?= $(IMAGE_REGISTRY)/$(OPERATOR_NAME)
 QUAY_AGENT_IMG ?= $(IMAGE_REGISTRY)/$(AGENT_NAME)
 
@@ -26,16 +26,16 @@ IMAGE_TAG = v$(VERSION)
 endif
 export IMAGE_TAG
 # Image URL to use all building/pushing image targets
-IMG ?= $(IMAGE_REGISTRY)/storage-based-remediation-operator:$(IMAGE_TAG)
+IMG ?= $(IMAGE_REGISTRY)/sbd-operator:$(IMAGE_TAG)
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
-BUNDLE_IMG ?= $(IMAGE_REGISTRY)/storage-based-remediation-operator-bundle:$(IMAGE_TAG)
+BUNDLE_IMG ?= $(IMAGE_REGISTRY)/sbd-operator-bundle:$(IMAGE_TAG)
 
 # The image tag given to the resulting catalog image (e.g. make catalog-build CATALOG_IMG=example.com/operator-catalog:v0.2.0).
-CATALOG_IMG ?= $(IMAGE_REGISTRY)/storage-based-remediation-operator-catalog:$(IMAGE_TAG)
+CATALOG_IMG ?= $(IMAGE_REGISTRY)/sbd-operator-catalog:$(IMAGE_TAG)
 
-AGENT_IMG ?= $(IMAGE_REGISTRY)/storage-based-remediation-agent:$(IMAGE_TAG)
+AGENT_IMG ?= $(IMAGE_REGISTRY)/sbd-agent:$(IMAGE_TAG)
 
 # Build information
 BUILD_DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -181,8 +181,8 @@ load-images:
 .PHONY: test-smoke-reload
 test-smoke-reload:
 	@echo "Reloading operator deployment..."
-	@eval $$(crc oc-env) && kubectl patch deployment storage-based-remediation-operator-controller-manager -n storage-based-remediation-operator-system -p '{"spec":{"template":{"spec":{"containers":[{"name":"manager","image":"$(QUAY_OPERATOR_NAME)@sha256:$$(podman inspect $(QUAY_AGENT_IMG):$(IMAGE_TAG) --format "{{.ID}}"| head -c 12 )","imagePullPolicy":"Never"}]}}}}'
-	@eval $$(crc oc-env) && kubectl patch sbdconfig test-config -n storage-based-remediation-operator-system -p '{"spec":{"image":"$(QUAY_AGENT_IMG)@sha256:$$(podman inspect $(QUAY_AGENT_IMG):$(IMAGE_TAG) --format "{{.ID}}"| head -c 12 )"}}'
+	@eval $$(crc oc-env) && kubectl patch deployment sbd-operator-controller-manager -n sbd-operator-system -p '{"spec":{"template":{"spec":{"containers":[{"name":"manager","image":"$(QUAY_OPERATOR_NAME)@sha256:$$(podman inspect $(QUAY_AGENT_IMG):$(IMAGE_TAG) --format "{{.ID}}"| head -c 12 )","imagePullPolicy":"Never"}]}}}}'
+	@eval $$(crc oc-env) && kubectl patch sbdconfig test-config -n sbd-operator-system -p '{"spec":{"image":"$(QUAY_AGENT_IMG)@sha256:$$(podman inspect $(QUAY_AGENT_IMG):$(IMAGE_TAG) --format "{{.ID}}"| head -c 12 )"}}'
 	#	OPERATOR_NAME="$(QUAY_OPERATOR_NAME)@sha256:$(OPERATOR_SHA)" \
 	#	AGENT_IMG="$(QUAY_AGENT_IMG)@sha256:$(AGENT_SHA)" \
 
@@ -259,16 +259,16 @@ lint-config: golangci-lint ## Verify golangci-lint linter configuration
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
-	go build -ldflags="		-X 'github.com/medik8s/storage-based-remediation/pkg/version.GitCommit=$(GIT_COMMIT)' \
-		-X 'github.com/medik8s/storage-based-remediation/pkg/version.GitDescribe=$(GIT_DESCRIBE)' \
-		-X 'github.com/medik8s/storage-based-remediation/pkg/version.BuildDate=$(BUILD_DATE)'" \
+	go build -ldflags="-X 'github.com/medik8s/sbd-operator/pkg/version.GitCommit=$(GIT_COMMIT)' \
+		-X 'github.com/medik8s/sbd-operator/pkg/version.GitDescribe=$(GIT_DESCRIBE)' \
+		-X 'github.com/medik8s/sbd-operator/pkg/version.BuildDate=$(BUILD_DATE)'" \
 		-o bin/manager cmd/main.go
 
 .PHONY: build-agent
 build-agent: manifests generate fmt vet ## Build SBD agent binary.
-	go build -ldflags="		-X 'github.com/medik8s/storage-based-remediation/pkg/version.GitCommit=$(GIT_COMMIT)' \
-		-X 'github.com/medik8s/storage-based-remediation/pkg/version.GitDescribe=$(GIT_DESCRIBE)' \
-		-X 'github.com/medik8s/storage-based-remediation/pkg/version.BuildDate=$(BUILD_DATE)'" \
+	go build -ldflags="-X 'github.com/medik8s/sbd-operator/pkg/version.GitCommit=$(GIT_COMMIT)' \
+		-X 'github.com/medik8s/sbd-operator/pkg/version.GitDescribe=$(GIT_DESCRIBE)' \
+		-X 'github.com/medik8s/sbd-operator/pkg/version.BuildDate=$(BUILD_DATE)'" \
 		-o bin/sbd-agent cmd/sbd-agent/main.go
 
 ##@ Tools

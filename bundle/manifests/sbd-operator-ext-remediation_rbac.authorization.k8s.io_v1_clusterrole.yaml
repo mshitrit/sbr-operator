@@ -4,7 +4,7 @@ metadata:
   creationTimestamp: null
   labels:
     rbac.ext-remediation/aggregate-to-ext-remediation: "true"
-  name: storage-based-remediation-operator-ext-remediation
+  name: sbd-operator-ext-remediation
 rules:
 - apiGroups:
   - medik8s.medik8s.io

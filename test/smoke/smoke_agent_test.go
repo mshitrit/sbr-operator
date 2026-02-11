@@ -35,9 +35,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	medik8sv1alpha1 "github.com/medik8s/storage-based-remediation/api/v1alpha1"
-	"github.com/medik8s/storage-based-remediation/pkg/agent"
-	"github.com/medik8s/storage-based-remediation/test/utils"
+	medik8sv1alpha1 "github.com/medik8s/sbd-operator/api/v1alpha1"
+	"github.com/medik8s/sbd-operator/pkg/agent"
+	"github.com/medik8s/sbd-operator/test/utils"
 )
 
 var _ = Describe("SBD Agent Smoke Tests", Ordered, Label("Smoke", "Agent"), func() {
@@ -59,8 +59,8 @@ var _ = Describe("SBD Agent Smoke Tests", Ordered, Label("Smoke", "Agent"), func
 		specReport := CurrentSpecReport()
 		if specReport.Failed() {
 			systemNamespace := &utils.TestNamespace{
-				Name:         "storage-based-remediation-operator-system",
-				ArtifactsDir: "testrun/storage-based-remediation-operator-system",
+				Name:         "sbd-operator-system",
+				ArtifactsDir: "testrun/sbd-operator-system",
 				Clients:      testClients,
 			}
 			utils.DescribeEnvironment(testClients, systemNamespace)

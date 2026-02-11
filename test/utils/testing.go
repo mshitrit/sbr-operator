@@ -44,7 +44,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	medik8sv1alpha1 "github.com/medik8s/storage-based-remediation/api/v1alpha1"
+	medik8sv1alpha1 "github.com/medik8s/sbd-operator/api/v1alpha1"
 )
 
 var (
@@ -328,7 +328,7 @@ func (tn *TestNamespace) NewPodStatusChecker(labels map[string]string) *PodStatu
 
 const (
 	// Default operator namespace
-	OperatorNamespaceName = "storage-based-remediation-operator-system"
+	OperatorNamespaceName = "sbd-operator-system"
 )
 
 func (tn *TestNamespace) OperatorNamespace() *TestNamespace {
@@ -355,8 +355,8 @@ func removeLog(logs []string, target string) []string {
 
 func (tn *TestNamespace) PodLogsContain(expectedLogs []string) (bool, error) {
 	var podChecker *PodStatusChecker
-	if tn.Name == "storage-based-remediation-operator-system" {
-		podChecker = tn.NewPodStatusChecker(map[string]string{"app.kubernetes.io/name": "storage-based-remediation-operator"})
+	if tn.Name == "sbd-operator-system" {
+		podChecker = tn.NewPodStatusChecker(map[string]string{"app.kubernetes.io/name": "sbd-operator"})
 	} else {
 		podChecker = tn.NewPodStatusChecker(map[string]string{"app": "sbd-agent"})
 	}
@@ -1551,8 +1551,8 @@ func SuiteSetup(prefix string) (*TestNamespace, error) {
 	By("verifying the controller-manager is deployed")
 	deployment := &appsv1.Deployment{}
 	err = testClients.Client.Get(testClients.Context, client.ObjectKey{
-		Name:      "storage-based-remediation-operator-controller-manager",
-		Namespace: "storage-based-remediation-operator-system",
+		Name:      "sbd-operator-controller-manager",
+		Namespace: "sbd-operator-system",
 	}, deployment)
 	Expect(err).NotTo(HaveOccurred(),
 		"Expected controller-manager to be deployed (should be done by Makefile setup)")
@@ -1560,7 +1560,7 @@ func SuiteSetup(prefix string) (*TestNamespace, error) {
 	// Confirm the operator is running
 	By("confirming the operator is running")
 	Eventually(func() bool {
-		podList, err := testClients.Clientset.CoreV1().Pods("storage-based-remediation-operator-system").List(testClients.Context,
+		podList, err := testClients.Clientset.CoreV1().Pods("sbd-operator-system").List(testClients.Context,
 			metav1.ListOptions{
 				LabelSelector: "control-plane=controller-manager",
 			})
@@ -1581,8 +1581,8 @@ func DescribeEnvironment(testClients *TestClients, testNamespace *TestNamespace)
 	isControllerNamespace := false
 	isAgentNamespace := false
 
-	// Heuristic: "storage-based-remediation-operator-system" is the default controller namespace
-	if testNamespace.Name == "storage-based-remediation-operator-system" {
+	// Heuristic: "sbd-operator-system" is the default controller namespace
+	if testNamespace.Name == "sbd-operator-system" {
 		isControllerNamespace = true
 	} else {
 		// Check for presence of controller-manager pods

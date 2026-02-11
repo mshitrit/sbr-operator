@@ -22,7 +22,7 @@ Hardware watchdog devices are used to automatically reset the system if the soft
 package main
 
 import (
-    "github.com/medik8s/storage-based-remediation/pkg/watchdog"
+    "github.com/medik8s/sbd-operator/pkg/watchdog"
     "github.com/go-logr/logr"
 )
 

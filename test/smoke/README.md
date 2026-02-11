@@ -69,7 +69,7 @@ The SBD Operator uses finalizers for proper cleanup of shared resources. This af
 If tests fail, check:
 
 1. **Cluster Access**: Ensure `kubectl cluster-info` works
-2. **Operator Logs**: Check controller manager pod logs in `storage-based-remediation-operator-system` namespace
+2. **Operator Logs**: Check controller manager pod logs in `sbd-operator-system` namespace
 3. **Resource Status**: Verify SBDConfig and DaemonSet status fields
 4. **Events**: Check Kubernetes events for error details
 
@@ -91,7 +91,7 @@ kubectl delete sbdconfig --all -n sbd-test
 kubectl delete namespace sbd-test
 
 # Uninstall operator (if needed)
-kubectl delete namespace storage-based-remediation-operator-system
+kubectl delete namespace sbd-operator-system
 ```
 
 ## Environment Variables

@@ -2,7 +2,7 @@ apiVersion: medik8s.medik8s.io/v1alpha1
 kind: SBDRemediation
 metadata:
   labels:
-    app.kubernetes.io/name: storage-based-remediation-operator
+    app.kubernetes.io/name: sbd-operator
     app.kubernetes.io/managed-by: kustomize
   name: sbdremediation-sample
   namespace: default

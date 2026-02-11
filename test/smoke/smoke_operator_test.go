@@ -30,7 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/medik8s/storage-based-remediation/test/utils"
+	"github.com/medik8s/sbd-operator/test/utils"
 )
 
 var _ = Describe("SBD Operator Smoke Tests", Ordered, Label("Smoke", "Operator"), func() {
@@ -68,8 +68,8 @@ var _ = Describe("SBD Operator Smoke Tests", Ordered, Label("Smoke", "Operator")
 		specReport := CurrentSpecReport()
 		if specReport.Failed() {
 			systemNamespace := &utils.TestNamespace{
-				Name:         "storage-based-remediation-operator-system",
-				ArtifactsDir: "testrun/storage-based-remediation-operator-system",
+				Name:         "sbd-operator-system",
+				ArtifactsDir: "testrun/sbd-operator-system",
 				Clients:      testClients,
 			}
 			utils.DescribeEnvironment(testClients, systemNamespace)
@@ -127,7 +127,7 @@ var _ = Describe("SBD Operator Smoke Tests", Ordered, Label("Smoke", "Operator")
 				RoleRef: rbacv1.RoleRef{
 					APIGroup: "rbac.authorization.k8s.io",
 					Kind:     "ClusterRole",
-					Name:     "storage-based-remediation-operator-metrics-reader",
+					Name:     "sbd-operator-metrics-reader",
 				},
 				Subjects: []rbacv1.Subject{
 					{

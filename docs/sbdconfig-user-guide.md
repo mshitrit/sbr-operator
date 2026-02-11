@@ -83,12 +83,12 @@ This creates:
 
 ### Standard Kubernetes
 ```bash
-kubectl apply -f https://github.com/medik8s/storage-based-remediation/releases/latest/download/install.yaml
+kubectl apply -f https://github.com/medik8s/sbd-operator/releases/latest/download/install.yaml
 ```
 
 ### OpenShift
 ```bash
-kubectl apply -f https://github.com/medik8s/storage-based-remediation/releases/latest/download/install-openshift.yaml
+kubectl apply -f https://github.com/medik8s/sbd-operator/releases/latest/download/install-openshift.yaml
 ```
 
 ## Configuration Reference

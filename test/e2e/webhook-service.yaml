@@ -4,7 +4,7 @@ metadata:
   name: webhook-service
   namespace: system
   labels:
-    app.kubernetes.io/name: storage-based-remediation-operator
+    app.kubernetes.io/name: sbd-operator
     app.kubernetes.io/component: e2e-test
 spec:
   ports:

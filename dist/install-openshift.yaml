@@ -5,7 +5,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: sbd-operator
     control-plane: controller-manager
-  name: storage-based-remediation-operator-system
+  name: sbd-operator-system
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -289,7 +289,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: sbd-operator
   name: sbd-operator-controller-manager
-  namespace: storage-based-remediation-operator-system
+  namespace: sbd-operator-system
 ---
 apiVersion: v1
 automountServiceAccountToken: true
@@ -301,7 +301,7 @@ metadata:
     app.kubernetes.io/name: sbd-agent
     app.kubernetes.io/part-of: sbd-operator
   name: sbd-operator-sbd-agent
-  namespace: storage-based-remediation-operator-system
+  namespace: sbd-operator-system
 ---
 apiVersion: v1
 automountServiceAccountToken: true
@@ -313,7 +313,7 @@ metadata:
     app.kubernetes.io/name: sbd-operator
     app.kubernetes.io/part-of: sbd-operator
   name: sbd-operator-sbd-operator-controller-manager
-  namespace: storage-based-remediation-operator-system
+  namespace: sbd-operator-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -322,7 +322,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: sbd-operator
   name: sbd-operator-leader-election-role
-  namespace: storage-based-remediation-operator-system
+  namespace: sbd-operator-system
 rules:
 - apiGroups:
   - ""
@@ -847,7 +847,7 @@ metadata:
   labels:
     app.kubernetes.io/component: openshift-resources
     app.kubernetes.io/name: sbd-operator
-  name: storage-based-remediation-operator-system:openshift:scc:sbd-operator-sbd-agent-privileged
+  name: sbd-operator-system:openshift:scc:sbd-operator-sbd-agent-privileged
 rules:
 - apiGroups:
   - security.openshift.io
@@ -865,7 +865,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: sbd-operator
   name: sbd-operator-leader-election-rolebinding
-  namespace: storage-based-remediation-operator-system
+  namespace: sbd-operator-system
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -873,7 +873,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: sbd-operator-controller-manager
-  namespace: storage-based-remediation-operator-system
+  namespace: sbd-operator-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -889,7 +889,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: sbd-operator-controller-manager
-  namespace: storage-based-remediation-operator-system
+  namespace: sbd-operator-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -902,7 +902,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: sbd-operator-controller-manager
-  namespace: storage-based-remediation-operator-system
+  namespace: sbd-operator-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -920,7 +920,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: sbd-operator-sbd-agent
-  namespace: storage-based-remediation-operator-system
+  namespace: sbd-operator-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -955,7 +955,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: sbd-operator-sbd-operator-controller-manager
-  namespace: storage-based-remediation-operator-system
+  namespace: sbd-operator-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -963,11 +963,11 @@ metadata:
   labels:
     app.kubernetes.io/component: openshift-resources
     app.kubernetes.io/name: sbd-operator
-  name: storage-based-remediation-operator-system:openshift:scc:sbd-operator-sbd-agent-privileged:sbd-agent
+  name: sbd-operator-system:openshift:scc:sbd-operator-sbd-agent-privileged:sbd-agent
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: storage-based-remediation-operator-system:openshift:scc:sbd-operator-sbd-agent-privileged
+  name: sbd-operator-system:openshift:scc:sbd-operator-sbd-agent-privileged
 subjects:
 - kind: ServiceAccount
   name: sbd-agent
@@ -981,7 +981,7 @@ metadata:
     app.kubernetes.io/name: sbd-operator
     control-plane: controller-manager
   name: sbd-operator-controller-manager-metrics-service
-  namespace: storage-based-remediation-operator-system
+  namespace: sbd-operator-system
 spec:
   ports:
   - name: https
@@ -1000,7 +1000,7 @@ metadata:
     app.kubernetes.io/name: sbd-operator
     control-plane: controller-manager
   name: sbd-operator-controller-manager
-  namespace: storage-based-remediation-operator-system
+  namespace: sbd-operator-system
 spec:
   replicas: 1
   selector:
@@ -1083,7 +1083,7 @@ metadata:
     app.kubernetes.io/component: openshift-resources
     app.kubernetes.io/name: sbd-operator
   name: sbd-operator-sbd-agent-privileged
-  namespace: storage-based-remediation-operator-system
+  namespace: sbd-operator-system
 priority: 10
 readOnlyRootFilesystem: false
 requiredDropCapabilities: null

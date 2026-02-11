@@ -42,8 +42,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	medik8sv1alpha1 "github.com/medik8s/storage-based-remediation/api/v1alpha1"
-	"github.com/medik8s/storage-based-remediation/test/utils"
+	medik8sv1alpha1 "github.com/medik8s/sbd-operator/api/v1alpha1"
+	"github.com/medik8s/sbd-operator/test/utils"
 )
 
 // ClusterInfo holds information about the test cluster
@@ -124,6 +124,12 @@ var _ = Describe("SBD Operator", Ordered, Label("e2e"), func() {
 				},
 			}
 		})
+		It("should not trigger fencing when kubelet communication is interrupted", func() {
+			if len(clusterInfo.WorkerNodes) < 3 {
+				Skip("Test requires at least 3 worker nodes for safe communication disruption testing")
+			}
+			testKubeletCommunicationFailure(clusterInfo)
+		})
 
 		It("should handle basic SBD configuration and agent deployment", func() {
 			if len(clusterInfo.WorkerNodes) < 3 {
@@ -145,13 +151,6 @@ var _ = Describe("SBD Operator", Ordered, Label("e2e"), func() {
 				Skip("Test requires at least 3 worker nodes")
 			}
 			testIncompatibleStorageClass()
-		})
-
-		It("should not trigger fencing when kubelet communication is interrupted", func() {
-			if len(clusterInfo.WorkerNodes) < 3 {
-				Skip("Test requires at least 3 worker nodes for safe communication disruption testing")
-			}
-			testKubeletCommunicationFailure(clusterInfo)
 		})
 
 		It("should handle node remediation", func() {

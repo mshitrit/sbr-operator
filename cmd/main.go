@@ -38,9 +38,9 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	medik8sv1alpha1 "github.com/medik8s/storage-based-remediation/api/v1alpha1"
-	"github.com/medik8s/storage-based-remediation/pkg/controller"
-	"github.com/medik8s/storage-based-remediation/pkg/version"
+	medik8sv1alpha1 "github.com/medik8s/sbd-operator/api/v1alpha1"
+	"github.com/medik8s/sbd-operator/pkg/controller"
+	"github.com/medik8s/sbd-operator/pkg/version"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -232,7 +232,7 @@ func main() {
 		WebhookServer:          webhookServer,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "storage-based-remediation-operator-leader-election",
+		LeaderElectionID:       "sbd-operator-leader-election",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the
 		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly

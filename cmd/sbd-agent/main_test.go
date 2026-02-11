@@ -30,9 +30,9 @@ import (
 
 	"k8s.io/client-go/rest"
 
-	mocks "github.com/medik8s/storage-based-remediation/pkg/mocks"
-	"github.com/medik8s/storage-based-remediation/pkg/sbdprotocol"
-	testutils "github.com/medik8s/storage-based-remediation/test/utils"
+	mocks "github.com/medik8s/sbd-operator/pkg/mocks"
+	"github.com/medik8s/sbd-operator/pkg/sbdprotocol"
+	testutils "github.com/medik8s/sbd-operator/test/utils"
 )
 
 const (

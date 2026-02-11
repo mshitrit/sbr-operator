@@ -602,7 +602,7 @@ replacements:
 - source:
     kind: ServiceAccount
     version: v1
-    name: storage-based-remediation-operator-controller-manager
+    name: sbd-operator-controller-manager
     fieldPath: metadata.name
   targets:
   - select:

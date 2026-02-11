@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/medik8s/storage-based-remediation/test/utils"
+	"github.com/medik8s/sbd-operator/test/utils"
 )
 
 var (
@@ -35,10 +35,10 @@ var (
 )
 
 // namespace where the project is deployed in
-const namespace = "storage-based-remediation-operator-system"
+const namespace = "sbd-operator-system"
 
 // serviceAccountName created for the project
-const serviceAccountName = "storage-based-remediation-operator-controller-manager"
+const serviceAccountName = "sbd-operator-controller-manager"
 
 // TestSmoke runs the smoke test suite for the project. These tests execute in an isolated,
 // temporary environment to validate basic functionality with the purpose to be used in CI jobs.
@@ -49,7 +49,7 @@ func TestSmoke(t *testing.T) {
 	testFlags = utils.GetTestFlags()
 
 	RegisterFailHandler(Fail)
-	GinkgoWriter.Print("Starting storage-based-remediation-operator smoke test suite\n")
+	GinkgoWriter.Print("Starting sbd-operator smoke test suite\n")
 	RunSpecs(t, "smoke suite")
 }
 

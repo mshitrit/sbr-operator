@@ -4,8 +4,8 @@ metadata:
   creationTimestamp: null
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: storage-based-remediation-operator
-  name: storage-based-remediation-operator-sbdconfig-editor-role
+    app.kubernetes.io/name: sbd-operator
+  name: sbd-operator-sbdconfig-editor-role
 rules:
 - apiGroups:
   - medik8s.medik8s.io
