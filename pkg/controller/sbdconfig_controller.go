@@ -1008,6 +1008,7 @@ echo "SBD devices initialization completed successfully"
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=storage.k8s.io,resources=storageclasses,verbs=get;list;watch
 // +kubebuilder:rbac:groups=security.openshift.io,resources=securitycontextconstraints,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=security.openshift.io,resources=securitycontextconstraints,verbs=use,resourceNames=privileged
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -1391,6 +1392,37 @@ func (r *SBDConfigReconciler) ensureServiceAccount(
 			"clusterRoleBinding", fmt.Sprintf("sbd-agent-%s-%s", namespaceName, sbdConfig.Name))
 		r.emitEventf(sbdConfig, EventTypeNormal, ReasonClusterRoleBindingCreated,
 			"ClusterRoleBinding 'sbd-agent-%s-%s' created", namespaceName, sbdConfig.Name)
+	}
+
+	// Bind sbd-agent SA to privileged SCC (OpenShift) so pods can run without a custom SCC (Option A / SNR-style).
+	privilegedSCCBindingName := fmt.Sprintf("sbd-operator-sbd-agent-privileged-scc-%s", namespaceName)
+	privilegedSCCBinding := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: privilegedSCCBindingName,
+			Labels: map[string]string{
+				"app":                          "sbd-agent",
+				"app.kubernetes.io/name":       "sbd-agent",
+				"app.kubernetes.io/component":  "agent",
+				"app.kubernetes.io/part-of":    "sbd-operator",
+				"app.kubernetes.io/managed-by": "sbd-operator",
+			},
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      "sbd-agent",
+				Namespace: namespaceName,
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "ClusterRole",
+			Name:     "sbd-operator-sbd-agent-privileged-scc",
+		},
+	}
+	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, privilegedSCCBinding, func() error { return nil })
+	if err != nil {
+		return result, fmt.Errorf("failed to create or update privileged SCC cluster role binding: %w", err)
 	}
 
 	return result, nil
