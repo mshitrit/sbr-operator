@@ -1164,7 +1164,7 @@ func TestGetImageWithOperatorImage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.spec.GetImageWithOperatorImage(tt.operatorImage)
+			result, _ := tt.spec.GetImageWithOperatorImage(tt.operatorImage)
 			if result != tt.expected {
 				t.Errorf("GetImageWithOperatorImage() = %v, expected %v", result, tt.expected)
 			}
