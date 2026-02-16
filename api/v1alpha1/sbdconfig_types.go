@@ -627,19 +627,31 @@ func deriveAgentImageFromOperator(operatorImage string) (string, error) {
 	}
 
 	lastSlash := strings.LastIndex(operatorImage, "/")
+	var prefix, suffix string
 	if lastSlash == -1 {
-		return "", fmt.Errorf("invalid operator image %q", operatorImage)
+		prefix = ""
+		suffix = operatorImage
+	} else {
+		prefix = operatorImage[:lastSlash+1]
+		suffix = operatorImage[lastSlash+1:]
 	}
 
-	prefix := operatorImage[:lastSlash+1]
-	suffix := operatorImage[lastSlash+1:]
+	// If already an agent image (e.g. controller fallback in tests), return as-is
+	if suffix == "sbd-agent" || strings.HasPrefix(suffix, "sbd-agent:") {
+		agentSuffix := suffix
+		if !strings.Contains(agentSuffix, ":") {
+			agentSuffix += ":latest"
+		}
+		return prefix + agentSuffix, nil
+	}
 
-	// Replace operator with agent in the image name
-	// Example: registry.redhat.io/workload-availability/storage-based-remediation-rhel9-operator:v0.1.0 -> registry.redhat.io/workload-availability/storage-base-remediation-agent-rhel9:v0.1.0
+	// Replace operator with agent in the image name. Two naming schemes are supported:
+	// 1) storage-based-remediation-*-operator -> storage-based-remediation-agent-* (then strip "-operator")
+	// 2) sbd-operator -> sbd-agent
 	agentSuffix := strings.Replace(suffix, "storage-based-remediation", "storage-based-remediation-agent", 1)
-	agentSuffix = strings.Replace(suffix, "-operator", "", 1)
-	// Example: registry.io/org/sbd-operator:v1.0.0 -> registry.io/org/sbd-agent:v1.0.0
-	if agentSuffix == suffix {
+	if agentSuffix != suffix {
+		agentSuffix = strings.Replace(agentSuffix, "-operator", "", 1)
+	} else {
 		agentSuffix = strings.Replace(suffix, "sbd-operator", "sbd-agent", 1)
 	}
 	if agentSuffix == suffix {
