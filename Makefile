@@ -293,6 +293,32 @@ setup-odf-storage: ## Build the OpenShift Data Foundation setup tool.
 	@echo "🔨 Building setup-odf-storage tool..."
 	@$(MAKE) -C tools/setup-odf-storage build
 
+SETUP_ODF_STORAGE_BIN := bin/setup-odf-storage
+
+.PHONY: verify-setup-odf-storage
+verify-setup-odf-storage: ## Verify setup-odf-storage binary was created under bin/setup-odf-storage.
+	@test -f $(SETUP_ODF_STORAGE_BIN) || (echo "Binary $(SETUP_ODF_STORAGE_BIN) not found"; exit 1)
+	@echo "✅ $(SETUP_ODF_STORAGE_BIN) exists"
+
+.PHONY: run-setup-odf-storage
+run-setup-odf-storage: verify-setup-odf-storage ## Run setup-odf-storage binary to set up storage (requires verify-setup-odf-storage).
+	@echo "🚀 Running setup-odf-storage to set up storage..."
+	@./$(SETUP_ODF_STORAGE_BIN)
+
+.PHONY: run-setup-odf-storage-retry
+run-setup-odf-storage-retry: verify-setup-odf-storage ## Run setup-odf-storage with up to 3 attempts, 1 min wait between retries.
+	@attempt=1; max=3; while [ $$attempt -le $$max ]; do \
+		echo "🚀 Running setup-odf-storage (attempt $$attempt of $$max)..."; \
+		./$(SETUP_ODF_STORAGE_BIN) && { echo "✅ setup-odf-storage succeeded"; exit 0; }; \
+		echo "❌ Attempt $$attempt failed"; \
+		if [ $$attempt -lt $$max ]; then \
+			echo "⏳ Waiting 60s before retry..."; \
+			sleep 60; \
+		fi; \
+		attempt=$$((attempt + 1)); \
+	done; \
+	echo "❌ All $$max attempts failed"; exit 1
+
 .PHONY: setup-shared-storage  
 setup-shared-storage: ## Build the shared storage setup tool.
 	@echo "🔨 Building setup-shared-storage tool..."
