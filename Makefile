@@ -546,21 +546,26 @@ LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
 
-## Tool Binaries
 KUBECTL ?= kubectl
 KIND ?= kind
-KUSTOMIZE = $(KUSTOMIZE_DIR)/$(KUSTOMIZE_VERSION)/kustomize
-CONTROLLER_GEN = $(CONTROLLER_GEN_DIR)/$(CONTROLLER_GEN_VERSION)/controller-gen
+
+## Default Tool Binaries
+ENVTEST_DIR ?= $(LOCALBIN)/setup-envtest
+GINKGO_DIR ?= $(LOCALBIN)/ginkgo
+YQ_DIR ?= $(LOCALBIN)/yq
 KUSTOMIZE_DIR ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN_DIR ?= $(LOCALBIN)/controller-gen
-ENVTEST = $(ENVTEST_DIR)/$(ENVTEST_VERSION)/setup-envtest
-ENVTEST_DIR ?= $(LOCALBIN)/setup-envtest
-GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
-GINKGO ?= $(LOCALBIN)/ginkgo
 SORT_IMPORTS_DIR ?= $(LOCALBIN)/sort-imports
 OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
 OPM ?= $(LOCALBIN)/opm
-YQ_DIR ?= $(LOCALBIN)/yq
+GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
+
+## Specific Tool Binaries
+ENVTEST = $(ENVTEST_DIR)/$(ENVTEST_VERSION)/setup-envtest
+GINKGO = $(GINKGO_DIR)/$(GINKGO_VERSION)/ginkgo
+KUSTOMIZE = $(KUSTOMIZE_DIR)/$(KUSTOMIZE_VERSION)/kustomize
+CONTROLLER_GEN = $(CONTROLLER_GEN_DIR)/$(CONTROLLER_GEN_VERSION)/controller-gen
+SORT_IMPORTS = $(SORT_IMPORTS_DIR)/$(SORT_IMPORTS_VERSION)/sort-imports
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5@v5.8.0
@@ -570,12 +575,9 @@ ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller
 #ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries (i.e. 1.31)
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
 GOLANGCI_LINT_VERSION ?= v2.1.0
-GINKGO_VERSION ?= v2.22.2
+GINKGO_VERSION ?= v2.27.5
 # See https://github.com/slintes/sort-imports/releases for the last version
 SORT_IMPORTS_VERSION = v0.3.0
-
-## Specific Tool Binaries
-SORT_IMPORTS = $(SORT_IMPORTS_DIR)/$(SORT_IMPORTS_VERSION)/sort-imports
 
 # OLM tooling versions (aligned with other operators)
 OPERATOR_SDK_VERSION ?= v1.33.0
@@ -623,9 +625,8 @@ $(GOLANGCI_LINT): $(LOCALBIN)
 	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/v2/cmd/golangci-lint,$(GOLANGCI_LINT_VERSION))
 
 .PHONY: ginkgo
-ginkgo: $(GINKGO) ## Download ginkgo locally if necessary.
-$(GINKGO): $(LOCALBIN)
-	$(call go-install-tool,$(GINKGO),github.com/onsi/ginkgo/v2/ginkgo,$(GINKGO_VERSION))
+ginkgo: ## Download ginkgo locally if necessary.
+	$(call go-install-tool,$(GINKGO),$(GINKGO_DIR),github.com/onsi/ginkgo/v2/ginkgo@${GINKGO_VERSION})
 
 .PHONY: sort-imports
 sort-imports: ## Download sort-imports locally if necessary.
