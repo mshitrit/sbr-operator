@@ -41,10 +41,13 @@ spec:
             properties:
               detectOnlyMode:
                 description: |-
-                  DetectOnlyMode when true disables all remediation: the agent disarms the watchdog (no reboot)
+                  DetectOnlyMode when set to Enabled disables all remediation: the agent disarms the watchdog (no reboot)
                   and the controller does not write fence messages. SBR still sets node conditions (e.g. SBRStorageUnhealthy)
                   so NHC or other remediators can observe unhealthy nodes without SBR triggering a reboot.
-                type: boolean
+                enum:
+                - Disabled
+                - Enabled
+                type: string
               image:
                 description: |-
                   Image is the container image for the SBD agent DaemonSet

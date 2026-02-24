@@ -131,7 +131,7 @@ func (in *SBDConfigSpec) DeepCopyInto(out *SBDConfigSpec) {
 	}
 	if in.DetectOnlyMode != nil {
 		in, out := &in.DetectOnlyMode, &out.DetectOnlyMode
-		*out = new(bool)
+		*out = new(DetectOnlyModeType)
 		**out = **in
 	}
 }
