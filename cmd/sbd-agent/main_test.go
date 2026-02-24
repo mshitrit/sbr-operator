@@ -1368,43 +1368,68 @@ func TestPreflightChecks_BothFailing(t *testing.T) {
 // from the Agent Suite (suite_test.go). Temp files + blockdevice populate the node table
 // so the agent's node manager resolves slot IDs; setSBDDevices then uses mocks for I/O.
 var _ = Describe("Fence flow with real SBD agent", func() {
+	const (
+		fenceFlowTargetNode   = "worker-2"
+		fenceFlowSBDTimeout   = uint(2)
+		fenceFlowMetricsPort  = 9655
+		detectOnlyMetricsPort = 9656
+	)
+
+	// setupFenceFlowBase creates worker-2 node, temp dir with sbd/fence files, and node manager;
+	// returns tmpDir, sbdPath, fencePath, worker1ID, worker2ID. Registers DeferCleanup for node and dir.
+	setupFenceFlowBase := func(tempPrefix string) (tmpDir, sbdPath, fencePath string, worker1ID, worker2ID uint16) {
+		By("Creating target node worker-2")
+		workerNode := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: fenceFlowTargetNode}}
+		Expect(k8sClient.Create(ctx, workerNode)).To(Succeed())
+		DeferCleanup(func() { _ = k8sClient.Delete(ctx, workerNode) })
+
+		By("Creating temp files for agent node manager slot table")
+		var err error
+		tmpDir, err = os.MkdirTemp("", tempPrefix)
+		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+		sbdPath = filepath.Join(tmpDir, "sbd")
+		fencePath = filepath.Join(tmpDir, "sbd-fence")
+		Expect(os.WriteFile(sbdPath, make([]byte, 1024*1024), 0644)).To(Succeed())
+		Expect(os.WriteFile(fencePath, make([]byte, 1024*1024), 0644)).To(Succeed())
+
+		heartbeatDevice, err := blockdevice.OpenWithTimeout(sbdPath, 2*time.Second, logr.Discard())
+		Expect(err).NotTo(HaveOccurred())
+		nmConfig := sbdprotocol.NodeManagerConfig{
+			ClusterName:        "test-cluster",
+			SyncInterval:       30 * time.Second,
+			StaleNodeTimeout:   10 * time.Minute,
+			Logger:             logr.Discard(),
+			FileLockingEnabled: true,
+		}
+		nm, err := sbdprotocol.NewNodeManager(heartbeatDevice, nmConfig)
+		Expect(err).NotTo(HaveOccurred())
+		worker1ID, err = nm.GetNodeIDForNode("worker-1")
+		Expect(err).NotTo(HaveOccurred())
+		worker2ID, err = nm.GetNodeIDForNode("worker-2")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(heartbeatDevice.Close()).To(Succeed())
+		return tmpDir, sbdPath, fencePath, worker1ID, worker2ID
+	}
+
+	// startFenceFlowAgent starts the agent in a goroutine and registers cleanup to send SIGTERM.
+	startFenceFlowAgent := func(agent *SBDAgent) {
+		sigChan := make(chan os.Signal, 1)
+		agentErr := make(chan error, 1)
+		go func() { agentErr <- agent.RunUntilShutdown(sigChan) }()
+		DeferCleanup(func() {
+			sigChan <- syscall.SIGTERM
+			select {
+			case <-agentErr:
+			case <-time.After(15 * time.Second):
+			}
+		})
+	}
+
 	Context("when agent sets SBRStorageUnhealthy and controller reconciles", func() {
 		It("should write fence message to device", func() {
-			targetNodeName := "worker-2"
-
-			By("Creating target node worker-2")
-			workerNode := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: targetNodeName}}
-			Expect(k8sClient.Create(ctx, workerNode)).To(Succeed())
-			DeferCleanup(func() {
-				_ = k8sClient.Delete(ctx, workerNode)
-			})
-
-			By("Creating temp files for agent node manager slot table and populating worker-1/worker-2")
-			tmpDir, err := os.MkdirTemp("", "fence-flow-")
-			Expect(err).NotTo(HaveOccurred())
-			DeferCleanup(func() { _ = os.RemoveAll(tmpDir) })
-
-			sbdPath := filepath.Join(tmpDir, "sbd")
-			fencePath := filepath.Join(tmpDir, "sbd-fence")
-			Expect(os.WriteFile(sbdPath, make([]byte, 1024*1024), 0644)).To(Succeed())
-			Expect(os.WriteFile(fencePath, make([]byte, 1024*1024), 0644)).To(Succeed())
-
-			heartbeatDevice, err := blockdevice.OpenWithTimeout(sbdPath, 2*time.Second, logr.Discard())
-			Expect(err).NotTo(HaveOccurred())
-			nmConfig := sbdprotocol.NodeManagerConfig{
-				ClusterName:        "test-cluster",
-				SyncInterval:       30 * time.Second,
-				StaleNodeTimeout:   10 * time.Minute,
-				Logger:             logr.Discard(),
-				FileLockingEnabled: true,
-			}
-			nm, err := sbdprotocol.NewNodeManager(heartbeatDevice, nmConfig)
-			Expect(err).NotTo(HaveOccurred())
-			worker1ID, err := nm.GetNodeIDForNode("worker-1")
-			Expect(err).NotTo(HaveOccurred())
-			worker2ID, err := nm.GetNodeIDForNode("worker-2")
-			Expect(err).NotTo(HaveOccurred())
-			Expect(heartbeatDevice.Close()).To(Succeed())
+			tmpDir, sbdPath, fencePath, worker1ID, worker2ID := setupFenceFlowBase("fence-flow-")
 
 			By("Writing initial heartbeats for worker-1 and worker-2 on mock devices")
 			mockHeartbeatDevice := mocks.NewMockBlockDevice("/tmp/fence-test-heartbeat", 1024*1024)
@@ -1417,29 +1442,18 @@ var _ = Describe("Fence flow with real SBD agent", func() {
 
 			By("Creating real SBD agent and starting RunUntilShutdown")
 			mockWatchdog := mocks.NewMockWatchdog(filepath.Join(tmpDir, "watchdog"))
-			sbdTimeoutSeconds := uint(2)
 			agent, err := NewSBDAgentWithWatchdog(mockWatchdog, sbdPath, "worker-1", "test-cluster", worker1ID,
-				1*time.Second, 1*time.Second, 1*time.Second, 1*time.Second, sbdTimeoutSeconds, "panic", 9655,
+				1*time.Second, 1*time.Second, 1*time.Second, 1*time.Second, fenceFlowSBDTimeout, "panic", fenceFlowMetricsPort,
 				10*time.Minute, true, 2*time.Second,
 				k8sClient, cfg, createManagerPrefix(), false)
 			Expect(err).NotTo(HaveOccurred())
 			agent.setSBDDevices(mockHeartbeatDevice, mockFenceDevice)
-
-			sigChan := make(chan os.Signal, 1)
-			agentErr := make(chan error, 1)
-			go func() { agentErr <- agent.RunUntilShutdown(sigChan) }()
-			DeferCleanup(func() {
-				sigChan <- syscall.SIGTERM
-				select {
-				case <-agentErr:
-				case <-time.After(15 * time.Second):
-				}
-			})
+			startFenceFlowAgent(agent)
 
 			By("Letting agent run a few peer loops so it sees both workers")
 			Consistently(func(g Gomega) bool {
 				node := &corev1.Node{}
-				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: targetNodeName}, node)).To(Succeed())
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: fenceFlowTargetNode}, node)).To(Succeed())
 				return isConditionExist(node.Status.Conditions, medik8sv1alpha1.NodeConditionSBRStorageUnhealthy, corev1.ConditionTrue)
 			}, 3*time.Second, 500*time.Millisecond).Should(BeFalse(), "agent should not set SBRStorageUnhealthy on worker-2")
 
@@ -1451,14 +1465,13 @@ var _ = Describe("Fence flow with real SBD agent", func() {
 			By("Waiting for real agent to set SBRStorageUnhealthy on worker-2 (peer timeout ~7s)")
 			Eventually(func(g Gomega) bool {
 				node := &corev1.Node{}
-				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: targetNodeName}, node)).To(Succeed())
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: fenceFlowTargetNode}, node)).To(Succeed())
 				return isConditionExist(node.Status.Conditions, medik8sv1alpha1.NodeConditionSBRStorageUnhealthy, corev1.ConditionTrue)
-
 			}, 20*time.Second, 500*time.Millisecond).Should(BeTrue(), "agent should set SBRStorageUnhealthy on worker-2")
 
 			By("Simulating NHC creating StorageBasedRemediation after observing the condition")
 			sbr := &medik8sv1alpha1.StorageBasedRemediation{
-				ObjectMeta: metav1.ObjectMeta{Name: targetNodeName, Namespace: "default"},
+				ObjectMeta: metav1.ObjectMeta{Name: fenceFlowTargetNode, Namespace: "default"},
 				Spec: medik8sv1alpha1.StorageBasedRemediationSpec{
 					Reason:         medik8sv1alpha1.SBDRemediationReasonHeartbeatTimeout,
 					TimeoutSeconds: 300,
@@ -1493,41 +1506,7 @@ var _ = Describe("Fence flow with real SBD agent", func() {
 
 	Context("detect-only mode", func() {
 		It("should emit SBDUnhealthyDetectOnly and not SelfFenceInitiated or SBDUnhealthyWatchdogTimeout when SBD is unhealthy", func() {
-			targetNodeName := "worker-2"
-
-			By("Creating target node worker-2")
-			workerNode := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: targetNodeName}}
-			Expect(k8sClient.Create(ctx, workerNode)).To(Succeed())
-			DeferCleanup(func() {
-				_ = k8sClient.Delete(ctx, workerNode)
-			})
-
-			By("Creating temp files for agent node manager slot table")
-			tmpDir, err := os.MkdirTemp("", "detect-only-")
-			Expect(err).NotTo(HaveOccurred())
-			DeferCleanup(func() { _ = os.RemoveAll(tmpDir) })
-
-			sbdPath := filepath.Join(tmpDir, "sbd")
-			fencePath := filepath.Join(tmpDir, "sbd-fence")
-			Expect(os.WriteFile(sbdPath, make([]byte, 1024*1024), 0644)).To(Succeed())
-			Expect(os.WriteFile(fencePath, make([]byte, 1024*1024), 0644)).To(Succeed())
-
-			heartbeatDevice, err := blockdevice.OpenWithTimeout(sbdPath, 2*time.Second, logr.Discard())
-			Expect(err).NotTo(HaveOccurred())
-			nmConfig := sbdprotocol.NodeManagerConfig{
-				ClusterName:        "test-cluster",
-				SyncInterval:       30 * time.Second,
-				StaleNodeTimeout:   10 * time.Minute,
-				Logger:             logr.Discard(),
-				FileLockingEnabled: true,
-			}
-			nm, err := sbdprotocol.NewNodeManager(heartbeatDevice, nmConfig)
-			Expect(err).NotTo(HaveOccurred())
-			worker1ID, err := nm.GetNodeIDForNode("worker-1")
-			Expect(err).NotTo(HaveOccurred())
-			_, err = nm.GetNodeIDForNode("worker-2")
-			Expect(err).NotTo(HaveOccurred())
-			Expect(heartbeatDevice.Close()).To(Succeed())
+			tmpDir, sbdPath, _, worker1ID, _ := setupFenceFlowBase("detect-only-")
 
 			By("Creating mock devices and making heartbeat writes fail so SBD becomes unhealthy")
 			mockHeartbeatDevice := mocks.NewMockBlockDevice("/tmp/detect-only-heartbeat", 1024*1024)
@@ -1542,26 +1521,15 @@ var _ = Describe("Fence flow with real SBD agent", func() {
 
 			By("Creating real SBD agent in detect-only mode and overriding recorder")
 			mockWatchdog := mocks.NewMockWatchdog(filepath.Join(tmpDir, "watchdog"))
-			sbdTimeoutSeconds := uint(2)
 			agent, err := NewSBDAgentWithWatchdog(mockWatchdog, sbdPath, "worker-1", "test-cluster", worker1ID,
-				1*time.Second, 1*time.Second, 1*time.Second, 1*time.Second, sbdTimeoutSeconds, "panic", 9656,
+				1*time.Second, 1*time.Second, 1*time.Second, 1*time.Second, fenceFlowSBDTimeout, "panic", detectOnlyMetricsPort,
 				10*time.Minute, true, 2*time.Second,
 				k8sClient, cfg, createManagerPrefix(), true)
 			Expect(err).NotTo(HaveOccurred())
 			agent.recorder = mockRecorder
 			agent.recorderObject = recorderObject
 			agent.setSBDDevices(mockHeartbeatDevice, mockFenceDevice)
-
-			sigChan := make(chan os.Signal, 1)
-			agentErr := make(chan error, 1)
-			go func() { agentErr <- agent.RunUntilShutdown(sigChan) }()
-			DeferCleanup(func() {
-				sigChan <- syscall.SIGTERM
-				select {
-				case <-agentErr:
-				case <-time.After(15 * time.Second):
-				}
-			})
+			startFenceFlowAgent(agent)
 
 			By("Running agent until SBD is marked unhealthy and watchdog loop emits detect-only event (~12s)")
 			time.Sleep(12 * time.Second)
