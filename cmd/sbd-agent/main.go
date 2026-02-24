@@ -96,6 +96,8 @@ var (
 		"Port for Prometheus metrics endpoint")
 	staleNodeTimeout = flag.Duration(agent.FlagStaleNodeTimeout, 1*time.Hour,
 		"Timeout for considering nodes stale and removing them from slot mapping")
+	detectOnlyMode = flag.Bool(agent.FlagDetectOnlyMode, false,
+		"When true, disarm watchdog and do not remediate (detect and set node conditions only)")
 
 	// I/O timeout configuration
 	ioTimeout = flag.Duration("io-timeout", 2*time.Second,
@@ -486,51 +488,13 @@ type SBDAgent struct {
 
 	// Namespace for controller reconciliation (configurable for testing)
 	controllerNamespace string
+
+	// detectOnlyMode when true disables remediation: watchdog is not armed, self-fence is never executed
+	detectOnlyMode bool
 }
 
-// NewSBDAgent creates a new SBD agent with the specified configuration
-func NewSBDAgent(
-	watchdogPath, heartbeatDevicePath, nodeName, clusterName string,
-	nodeID uint16,
-	petInterval, sbdUpdateInterval, heartbeatInterval, peerCheckInterval time.Duration,
-	sbdTimeoutSeconds uint,
-	rebootMethod string,
-	metricsPort int,
-	staleNodeTimeout time.Duration,
-	fileLockingEnabled bool,
-	ioTimeout time.Duration,
-	k8sClient client.Client,
-	controllerNamespace string,
-) (*SBDAgent, error) {
-	// Initialize watchdog first (always required) with softdog fallback for systems without hardware watchdog
-	wd, err := watchdog.NewWithSoftdogFallback(watchdogPath, logger)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize watchdog %s: %w", watchdogPath, err)
-	}
-
-	return NewSBDAgentWithWatchdog(
-		wd,
-		heartbeatDevicePath,
-		nodeName,
-		clusterName,
-		nodeID,
-		petInterval,
-		sbdUpdateInterval,
-		heartbeatInterval,
-		peerCheckInterval,
-		sbdTimeoutSeconds,
-		rebootMethod,
-		metricsPort,
-		staleNodeTimeout,
-		fileLockingEnabled,
-		ioTimeout,
-		k8sClient,
-		nil,
-		controllerNamespace,
-	)
-}
-
-// NewSBDAgentWithWatchdog creates a new SBD agent with a provided watchdog interface
+// NewSBDAgentWithWatchdog creates a new SBD agent with a provided watchdog interface.
+// When detectOnlyMode is true, the watchdog is not used for remediation (e.g. pass a no-op mock to disarm).
 func NewSBDAgentWithWatchdog(
 	wd mocks.WatchdogInterface,
 	heartbeatDevicePath, nodeName, clusterName string,
@@ -545,12 +509,13 @@ func NewSBDAgentWithWatchdog(
 	k8sClient client.Client,
 	restConfig *rest.Config,
 	controllerNamespace string,
+	detectOnlyMode bool,
 ) (*SBDAgent, error) {
 	// Input validation
 	if wd == nil {
 		return nil, fmt.Errorf("watchdog interface cannot be nil")
 	}
-	if wd.Path() == "" {
+	if !detectOnlyMode && wd.Path() == "" {
 		return nil, fmt.Errorf("watchdog path cannot be empty")
 	}
 
@@ -624,6 +589,7 @@ func NewSBDAgentWithWatchdog(
 		selfFenceDetected:   false,
 		metricsPort:         metricsPort,
 		nodeManagerStop:     make(chan struct{}),
+		detectOnlyMode:      detectOnlyMode,
 		staleNodeTimeout:    staleNodeTimeout,
 		lastFailureReset:    time.Now(),
 		retryConfig:         retryConfig,
@@ -1182,7 +1148,7 @@ func (s *SBDAgent) watchdogLoop() {
 				return
 			}
 
-			// Only pet the watchdog if SBD device is healthy
+			// Only pet the watchdog if SBD device is healthy (or always in detect-only to keep watchdog disarmed)
 			if s.isSBDHealthy() {
 				// Use retry mechanism for watchdog petting
 				err := retry.Do(s.ctx, s.retryConfig, "pet watchdog", func() error {
@@ -1206,13 +1172,18 @@ func (s *SBDAgent) watchdogLoop() {
 					}
 				}
 			} else {
-				logger.Error(nil, "Skipping watchdog pet - SBD device is unhealthy",
-					"sbdDevicePath", s.heartbeatDevicePath,
-					"sbdHealthy", s.isSBDHealthy())
-				// Mark agent as unhealthy when SBD device is unhealthy
+				// SBD device is unhealthy
 				agentHealthyGauge.Set(0)
-				// This will cause the system to reboot via watchdog timeout
-				// This is the desired behavior for self-fencing when SBD fails
+				if s.detectOnlyMode {
+					logger.Info("SBD unhealthy in detect-only mode (watchdog disarmed, no reboot)",
+						"sbdDevicePath", s.heartbeatDevicePath)
+				} else {
+					logger.Error(nil, "Skipping watchdog pet - SBD device is unhealthy",
+						"sbdDevicePath", s.heartbeatDevicePath,
+						"sbdHealthy", s.isSBDHealthy())
+					// This will cause the system to reboot via watchdog timeout
+					// This is the desired behavior for self-fencing when SBD fails
+				}
 			}
 		}
 	}
@@ -1619,6 +1590,10 @@ func (s *SBDAgent) setSelfFenceDetected(detected bool) {
 // The systemctl-reboot method uses multiple aggressive techniques based on destructive testing
 // that showed direct reboot commands are more effective than panic() in containerized environments
 func (s *SBDAgent) executeSelfFencing(reason string) {
+	if s.detectOnlyMode {
+		logger.Info("Detect-only mode: skipping self-fence", "reason", reason, "nodeName", s.nodeName)
+		return
+	}
 	logger.Error(nil, "Self-fencing initiated",
 		"reason", reason,
 		"rebootMethod", s.rebootMethod,
@@ -2256,10 +2231,40 @@ func main() {
 	}
 
 	// Create SBD agent (hash mapping is always enabled)
-	sbdAgent, err := NewSBDAgent(*watchdogPath, *sbdDevice, nodeNameValue, *clusterName, nodeIDValue,
-		*petInterval, *sbdUpdateInterval, heartbeatInterval, *peerCheckInterval, sbdTimeoutValue,
-		rebootMethodValue, *metricsPort, *staleNodeTimeout, *sbdFileLocking, *ioTimeout,
-		k8sClient, "")
+	var wd mocks.WatchdogInterface
+	if *detectOnlyMode {
+		logger.Info("Detect-only mode: using no-op watchdog (watchdog disarmed, no remediation)")
+		wd = mocks.NewMockWatchdog(*watchdogPath)
+	} else {
+		realWd, err := watchdog.NewWithSoftdogFallback(*watchdogPath, logger)
+		if err != nil {
+			logger.Error(err, "Failed to initialize watchdog",
+				"watchdogPath", *watchdogPath)
+			os.Exit(1)
+		}
+		wd = realWd
+	}
+	sbdAgent, err := NewSBDAgentWithWatchdog(
+		wd,
+		*sbdDevice,
+		nodeNameValue,
+		*clusterName,
+		nodeIDValue,
+		*petInterval,
+		*sbdUpdateInterval,
+		heartbeatInterval,
+		*peerCheckInterval,
+		sbdTimeoutValue,
+		rebootMethodValue,
+		*metricsPort,
+		*staleNodeTimeout,
+		*sbdFileLocking,
+		*ioTimeout,
+		k8sClient,
+		nil,
+		"",
+		*detectOnlyMode,
+	)
 	if err != nil {
 		logger.Error(err, "Failed to create SBD agent",
 			"watchdogPath", *watchdogPath,

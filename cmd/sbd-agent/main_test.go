@@ -82,7 +82,7 @@ func createTestSBDAgentWithFileLocking(t *testing.T, nodeName string, metricsPor
 	agent, err := NewSBDAgentWithWatchdog(mockWatchdog, sbdPath, nodeName, "test-cluster", 1,
 		1*time.Second, 1*time.Second, 1*time.Second, 1*time.Second, 30, "panic", metricsPort,
 		10*time.Minute, fileLockingEnabled, 2*time.Second,
-		testutils.NewFakeClient(t), &rest.Config{}, createManagerPrefix())
+		testutils.NewFakeClient(t), &rest.Config{}, createManagerPrefix(), false)
 	if err != nil {
 		t.Fatalf("Failed to create SBD agent: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestWatchdogClosedWhenShutdownSignalReceived(t *testing.T) {
 	agent, err := NewSBDAgentWithWatchdog(mockWatchdog, sbdPath, "test-node", "test-cluster", 1,
 		1*time.Second, 1*time.Second, 1*time.Second, 1*time.Second, 30, "panic", 555,
 		10*time.Minute, true, 2*time.Second,
-		testutils.NewFakeClient(t), &rest.Config{}, createManagerPrefix())
+		testutils.NewFakeClient(t), &rest.Config{}, createManagerPrefix(), false)
 	if err != nil {
 		t.Fatalf("Failed to create SBD agent: %v", err)
 	}
@@ -467,7 +467,7 @@ func TestSBDAgent_NewSBDAgent(t *testing.T) {
 	invalidWatchdog := mocks.NewMockWatchdog("")
 	_, err := NewSBDAgentWithWatchdog(invalidWatchdog, "/dev/invalid-sbd", "", "test-cluster", 0, 0, 0, 0, 0, 0,
 		"invalid", 8087, 10*time.Minute, true, 2*time.Second, testutils.NewFakeClient(t),
-		&rest.Config{}, createManagerPrefix())
+		&rest.Config{}, createManagerPrefix(), false)
 	if err == nil {
 		t.Error("Expected error for invalid configuration")
 	}
@@ -647,7 +647,7 @@ func BenchmarkSBDAgent_WriteHeartbeat(b *testing.B) {
 
 	agent, err := NewSBDAgentWithWatchdog(mockWatchdog, sbdPath, "test-node", "test-cluster", 1,
 		30*time.Second, 5*time.Second, 15*time.Second, 5*time.Second, 30, "panic", 8080,
-		10*time.Minute, true, 2*time.Second, testutils.NewFakeClient(b), &rest.Config{}, createManagerPrefix())
+		10*time.Minute, true, 2*time.Second, testutils.NewFakeClient(b), &rest.Config{}, createManagerPrefix(), false)
 	if err != nil {
 		b.Fatalf("Failed to create agent: %v", err)
 	}
@@ -676,7 +676,7 @@ func BenchmarkSBDAgent_ReadPeerHeartbeat(b *testing.B) {
 
 	agent, err := NewSBDAgentWithWatchdog(mockWatchdog, sbdPath, "test-node", "test-cluster", 1,
 		30*time.Second, 5*time.Second, 15*time.Second, 5*time.Second, 30, "panic", 8080,
-		10*time.Minute, true, 2*time.Second, testutils.NewFakeClient(b), &rest.Config{}, createManagerPrefix())
+		10*time.Minute, true, 2*time.Second, testutils.NewFakeClient(b), &rest.Config{}, createManagerPrefix(), false)
 	if err != nil {
 		b.Fatalf("Failed to create agent: %v", err)
 	}
@@ -1305,7 +1305,7 @@ func TestSBDAgent_FileLockingConfiguration(t *testing.T) {
 		// Try to create agent with empty SBD device path should fail
 		_, err := NewSBDAgentWithWatchdog(mockWatchdog, "", "test-node", "test-cluster", 1,
 			1*time.Second, 1*time.Second, 1*time.Second, 1*time.Second, 30, "panic", 8202, 10*time.Minute, false,
-			2*time.Second, testutils.NewFakeClient(t), &rest.Config{}, createManagerPrefix())
+			2*time.Second, testutils.NewFakeClient(t), &rest.Config{}, createManagerPrefix(), false)
 		if err == nil {
 			t.Error("Expected error when creating agent with empty SBD device path")
 		}
@@ -1428,7 +1428,7 @@ var _ = Describe("Fence flow with real SBD agent", func() {
 			agent, err := NewSBDAgentWithWatchdog(mockWatchdog, sbdPath, "worker-1", "test-cluster", worker1ID,
 				1*time.Second, 1*time.Second, 1*time.Second, 1*time.Second, sbdTimeoutSeconds, "panic", 9655,
 				10*time.Minute, true, 2*time.Second,
-				k8sClient, cfg, createManagerPrefix())
+				k8sClient, cfg, createManagerPrefix(), false)
 			Expect(err).NotTo(HaveOccurred())
 			agent.setSBDDevices(mockHeartbeatDevice, mockFenceDevice)
 

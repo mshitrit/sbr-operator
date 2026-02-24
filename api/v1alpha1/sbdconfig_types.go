@@ -217,6 +217,20 @@ type SBDConfigSpec struct {
 	// +kubebuilder:default="5s"
 	// +optional
 	PeerCheckInterval *metav1.Duration `json:"peerCheckInterval,omitempty"`
+
+	// DetectOnlyMode when true disables all remediation: the agent disarms the watchdog (no reboot)
+	// and the controller does not write fence messages. SBR still sets node conditions (e.g. SBRStorageUnhealthy)
+	// so NHC or other remediators can observe unhealthy nodes without SBR triggering a reboot.
+	// +optional
+	DetectOnlyMode *bool `json:"detectOnlyMode,omitempty"`
+}
+
+// GetDetectOnlyMode returns whether detect-only mode is enabled (default false).
+func (s *SBDConfigSpec) GetDetectOnlyMode() bool {
+	if s.DetectOnlyMode != nil {
+		return *s.DetectOnlyMode
+	}
+	return false
 }
 
 // GetSbdWatchdogPath returns the watchdog path with default fallback
