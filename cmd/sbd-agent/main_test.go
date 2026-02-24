@@ -100,13 +100,6 @@ func createTestSBDAgentWithFileLocking(t *testing.T, nodeName string, metricsPor
 // TestWatchdogClosedWhenShutdownSignalReceived verifies that when a shutdown signal
 // (SIGTERM) is received, the agent closes the watchdog so the node does not reboot
 // on uninstall. See docs/RCA-watchdog-reboot-on-uninstall.md.
-//
-// This test is expected to FAIL until the bug is fixed: today the main loop blocks
-// in Start() and never reads the signal, so Stop() is never called and the watchdog
-// is never closed.
-//
-// This test uses its own agent setup (no t.Cleanup) so the run loop goroutine can
-// stay blocked without triggering double Stop() or panics; only this test is affected.
 func TestWatchdogClosedWhenShutdownSignalReceived(t *testing.T) {
 	// Inline agent creation for this test only: same as createTestSBDAgentWithFileLocking
 	// but without t.Cleanup(cleanup), so we do not call Stop() on test exit.
