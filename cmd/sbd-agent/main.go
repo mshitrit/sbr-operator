@@ -1175,9 +1175,14 @@ func (s *SBDAgent) watchdogLoop() {
 				// SBD device is unhealthy
 				agentHealthyGauge.Set(0)
 				if s.detectOnlyMode {
+					s.recorder.Event(s.recorderObject, "Warning", "SBDUnhealthyDetectOnly",
+						fmt.Sprintf("SBD device unhealthy on (%s, %d); detect-only mode, watchdog disarmed, no reboot", s.nodeName, s.nodeID))
+
 					logger.Info("SBD unhealthy in detect-only mode (watchdog disarmed, no reboot)",
 						"sbdDevicePath", s.heartbeatDevicePath)
 				} else {
+					s.recorder.Event(s.recorderObject, "Warning", "SBDUnhealthyWatchdogTimeout",
+						fmt.Sprintf("SBD device unhealthy on (%s, %d); skipping watchdog pet, reboot imminent", s.nodeName, s.nodeID))
 					logger.Error(nil, "Skipping watchdog pet - SBD device is unhealthy",
 						"sbdDevicePath", s.heartbeatDevicePath,
 						"sbdHealthy", s.isSBDHealthy())
@@ -1594,6 +1599,8 @@ func (s *SBDAgent) executeSelfFencing(reason string) {
 		logger.Info("Detect-only mode: skipping self-fence", "reason", reason, "nodeName", s.nodeName)
 		return
 	}
+	s.recorder.Event(s.recorderObject, "Warning", "SelfFenceInitiated",
+		fmt.Sprintf("Self-fencing initiated on (%s, %d): %s", s.nodeName, s.nodeID, reason))
 	logger.Error(nil, "Self-fencing initiated",
 		"reason", reason,
 		"rebootMethod", s.rebootMethod,
