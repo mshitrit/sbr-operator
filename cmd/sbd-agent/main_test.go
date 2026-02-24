@@ -1490,6 +1490,104 @@ var _ = Describe("Fence flow with real SBD agent", func() {
 			}, 15*time.Second, 500*time.Millisecond).Should(BeTrue(), "controller should write fence message with FENCE_REASON_HEARTBEAT_TIMEOUT")
 		})
 	})
+
+	Context("detect-only mode", func() {
+		It("should emit SBDUnhealthyDetectOnly and not SelfFenceInitiated or SBDUnhealthyWatchdogTimeout when SBD is unhealthy", func() {
+			targetNodeName := "worker-2"
+
+			By("Creating target node worker-2")
+			workerNode := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: targetNodeName}}
+			Expect(k8sClient.Create(ctx, workerNode)).To(Succeed())
+			DeferCleanup(func() {
+				_ = k8sClient.Delete(ctx, workerNode)
+			})
+
+			By("Creating temp files for agent node manager slot table")
+			tmpDir, err := os.MkdirTemp("", "detect-only-")
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+			sbdPath := filepath.Join(tmpDir, "sbd")
+			fencePath := filepath.Join(tmpDir, "sbd-fence")
+			Expect(os.WriteFile(sbdPath, make([]byte, 1024*1024), 0644)).To(Succeed())
+			Expect(os.WriteFile(fencePath, make([]byte, 1024*1024), 0644)).To(Succeed())
+
+			heartbeatDevice, err := blockdevice.OpenWithTimeout(sbdPath, 2*time.Second, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+			nmConfig := sbdprotocol.NodeManagerConfig{
+				ClusterName:        "test-cluster",
+				SyncInterval:       30 * time.Second,
+				StaleNodeTimeout:   10 * time.Minute,
+				Logger:             logr.Discard(),
+				FileLockingEnabled: true,
+			}
+			nm, err := sbdprotocol.NewNodeManager(heartbeatDevice, nmConfig)
+			Expect(err).NotTo(HaveOccurred())
+			worker1ID, err := nm.GetNodeIDForNode("worker-1")
+			Expect(err).NotTo(HaveOccurred())
+			_, err = nm.GetNodeIDForNode("worker-2")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(heartbeatDevice.Close()).To(Succeed())
+
+			By("Creating mock devices and making heartbeat writes fail so SBD becomes unhealthy")
+			mockHeartbeatDevice := mocks.NewMockBlockDevice("/tmp/detect-only-heartbeat", 1024*1024)
+			mockFenceDevice := mocks.NewMockBlockDevice("/tmp/detect-only-fence", 1024*1024)
+			mockHeartbeatDevice.SetFailWrite(true)
+
+			By("Creating mock event recorder and SBDConfig object for events")
+			mockRecorder := mocks.NewMockEventRecorder()
+			recorderObject := &medik8sv1alpha1.SBDConfig{
+				ObjectMeta: metav1.ObjectMeta{Name: "detect-only-test", Namespace: "default"},
+			}
+
+			By("Creating real SBD agent in detect-only mode and overriding recorder")
+			mockWatchdog := mocks.NewMockWatchdog(filepath.Join(tmpDir, "watchdog"))
+			sbdTimeoutSeconds := uint(2)
+			agent, err := NewSBDAgentWithWatchdog(mockWatchdog, sbdPath, "worker-1", "test-cluster", worker1ID,
+				1*time.Second, 1*time.Second, 1*time.Second, 1*time.Second, sbdTimeoutSeconds, "panic", 9656,
+				10*time.Minute, true, 2*time.Second,
+				k8sClient, cfg, createManagerPrefix(), true)
+			Expect(err).NotTo(HaveOccurred())
+			agent.recorder = mockRecorder
+			agent.recorderObject = recorderObject
+			agent.setSBDDevices(mockHeartbeatDevice, mockFenceDevice)
+
+			sigChan := make(chan os.Signal, 1)
+			agentErr := make(chan error, 1)
+			go func() { agentErr <- agent.RunUntilShutdown(sigChan) }()
+			DeferCleanup(func() {
+				sigChan <- syscall.SIGTERM
+				select {
+				case <-agentErr:
+				case <-time.After(15 * time.Second):
+				}
+			})
+
+			By("Running agent until SBD is marked unhealthy and watchdog loop emits detect-only event (~12s)")
+			time.Sleep(12 * time.Second)
+
+			By("Collecting events from mock recorder")
+			events := mockRecorder.GetEvents()
+
+			By("Verifying no remediation events: SelfFenceInitiated and SBDUnhealthyWatchdogTimeout must not be emitted")
+			for _, e := range events {
+				Expect(e.Reason).NotTo(Equal("SelfFenceInitiated"),
+					"detect-only mode must not emit SelfFenceInitiated")
+				Expect(e.Reason).NotTo(Equal("SBDUnhealthyWatchdogTimeout"),
+					"detect-only mode must not emit SBDUnhealthyWatchdogTimeout (watchdog disarmed)")
+			}
+
+			By("Verifying SBDUnhealthyDetectOnly was emitted when SBD became unhealthy")
+			var foundDetectOnly bool
+			for _, e := range events {
+				if e.Reason == "SBDUnhealthyDetectOnly" {
+					foundDetectOnly = true
+					break
+				}
+			}
+			Expect(foundDetectOnly).To(BeTrue(), "expected at least one SBDUnhealthyDetectOnly event when SBD unhealthy in detect-only mode")
+		})
+	})
 })
 
 func isConditionExist(conditions []corev1.NodeCondition, condType corev1.NodeConditionType, condStatus corev1.ConditionStatus) bool {
