@@ -1284,7 +1284,9 @@ func (s *SBDAgent) peerMonitorLoop() {
 			healthyPeers := s.peerMonitor.getHealthyPeerCount()
 			logger.Info("Cluster status", "healthyPeers", healthyPeers)
 
-			// Set or clear SBRStorageUnhealthy node condition so NHC can create remediation when needed
+			// Set or clear SBRStorageUnhealthy node condition so NHC can create remediation when needed.
+			// State machine (mirrors old remediation create/delete): True -> after SBDAgentOOSTaintStaleAge -> Unknown (like deleting stale remediation);
+			// Unknown -> if peer healthy set False; else after grace period set True again.
 			for _, peer := range s.peerMonitor.getPeerStatus() {
 				// Skip ourselves
 				if peer.NodeID == s.nodeID {
@@ -1298,28 +1300,61 @@ func (s *SBDAgent) peerMonitorLoop() {
 					continue
 				}
 
-				if !peer.IsHealthy {
-					// Require a minimum number of missed heartbeats before setting unhealthy condition
-					missed := int(time.Since(peer.LastSeen) / s.heartbeatInterval)
-					if missed < DefaultMinMissedHeartbeatsForRemediation {
-						logger.V(1).Info("Peer unhealthy but below remediation threshold",
-							"peerNodeID", peer.NodeID,
-							"missedHeartbeats", missed,
-							"threshold", DefaultMinMissedHeartbeatsForRemediation)
-						continue
+				currentStatus, lastTransition, hasCond := s.getSBRStorageUnhealthyCondition(peerNodeName)
+				now := time.Now()
+
+				if peer.IsHealthy {
+					// Node regained health: remove condition (set False) if it was True or Unknown
+					if currentStatus == corev1.ConditionTrue || currentStatus == corev1.ConditionUnknown {
+						if err := s.setNodeConditionSBRStorageUnhealthyStatus(peerNodeName, corev1.ConditionFalse, "Recovered", "SBD peer heartbeats resumed"); err != nil {
+							logger.Error(err, "Failed to clear SBRStorageUnhealthy condition for recovered peer",
+								"peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
+						} else {
+							logger.V(1).Info("Cleared SBRStorageUnhealthy condition for recovered peer",
+								"peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
+						}
 					}
+					continue
+				}
+
+				// Peer unhealthy: require minimum missed heartbeats before setting condition
+				missed := int(time.Since(peer.LastSeen) / s.heartbeatInterval)
+				if missed < DefaultMinMissedHeartbeatsForRemediation {
+					logger.V(1).Info("Peer unhealthy but below remediation threshold",
+						"peerNodeID", peer.NodeID,
+						"missedHeartbeats", missed,
+						"threshold", DefaultMinMissedHeartbeatsForRemediation)
+					continue
+				}
+
+				// Condition has been True too long: set Unknown (same as old "delete stale remediation") so NHC removes remediation and agent can report healthy
+				if currentStatus == corev1.ConditionTrue && now.Sub(lastTransition) > controller.SBDAgentOOSTaintStaleAge {
+					if err := s.setNodeConditionSBRStorageUnhealthyStatus(peerNodeName, corev1.ConditionUnknown, "GivingAgentChance", "Condition stale; set Unknown so NHC removes remediation and agent can report healthy"); err != nil {
+						logger.Error(err, "Failed to set SBRStorageUnhealthy to Unknown for stale condition", "peerNodeName", peerNodeName)
+					} else {
+						logger.Info("Set SBRStorageUnhealthy to Unknown (stale); NHC will remove remediation", "peerNodeName", peerNodeName)
+					}
+					continue
+				}
+
+				// Condition is Unknown: after grace period set True again if still unhealthy
+				if currentStatus == corev1.ConditionUnknown {
+					if now.Sub(lastTransition) > SBDAgentRemediationGracePeriod {
+						if err := s.setNodeConditionSBRStorageUnhealthyStatus(peerNodeName, corev1.ConditionTrue, string(v1alpha1.SBDRemediationReasonHeartbeatTimeout), "SBD peer heartbeat timeout"); err != nil {
+							logger.Error(err, "Failed to set SBRStorageUnhealthy condition after grace period", "peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
+						} else {
+							logger.Info("Set SBRStorageUnhealthy condition after grace period (node still unhealthy)", "peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
+						}
+					}
+					continue
+				}
+
+				// Condition False or absent: set True so NHC can create remediation
+				if currentStatus == corev1.ConditionFalse || !hasCond {
 					if err := s.setNodeConditionSBRStorageUnhealthy(peerNodeName, true, string(v1alpha1.SBDRemediationReasonHeartbeatTimeout), "SBD peer heartbeat timeout"); err != nil {
 						logger.Error(err, "Failed to set SBRStorageUnhealthy condition for unhealthy peer", "peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
 					} else {
 						logger.Info("Set SBRStorageUnhealthy condition for unhealthy peer", "peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
-					}
-				} else {
-					if err := s.setNodeConditionSBRStorageUnhealthy(peerNodeName, false, "Recovered", "SBD peer heartbeats resumed"); err != nil {
-						logger.Error(err, "Failed to clear SBRStorageUnhealthy condition for recovered peer",
-							"peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
-					} else {
-						logger.V(1).Info("Cleared SBRStorageUnhealthy condition for recovered peer",
-							"peerNodeID", peer.NodeID, "peerNodeName", peerNodeName)
 					}
 				}
 			}
@@ -1343,20 +1378,26 @@ func (s *SBDAgent) resolveNodeName(nodeID uint16) (string, bool) {
 // setNodeConditionSBRStorageUnhealthy sets or clears the SBRStorageUnhealthy condition on the node's status.
 // When unhealthy is true, NHC can watch this condition and create a StorageBasedRemediation.
 func (s *SBDAgent) setNodeConditionSBRStorageUnhealthy(nodeName string, unhealthy bool, reason, message string) error {
+	status := corev1.ConditionFalse
+	if unhealthy {
+		status = corev1.ConditionTrue
+	}
+	return s.setNodeConditionSBRStorageUnhealthyStatus(nodeName, status, reason, message)
+}
+
+// setNodeConditionSBRStorageUnhealthyStatus sets the SBRStorageUnhealthy condition to the given status (True, False, or Unknown).
+// Unknown is used to signal NHC to remove its remediation so the node agent can run and report healthy; after a grace period we set True again if still unhealthy.
+func (s *SBDAgent) setNodeConditionSBRStorageUnhealthyStatus(nodeName string, status corev1.ConditionStatus, reason, message string) error {
 	node := &corev1.Node{}
 	if err := s.k8sClient.Get(s.ctx, client.ObjectKey{Name: nodeName}, node); err != nil {
 		return fmt.Errorf("get node %s: %w", nodeName, err)
 	}
 	now := metav1.NewTime(time.Now().UTC())
-	desiredStatus := corev1.ConditionFalse
-	if unhealthy {
-		desiredStatus = corev1.ConditionTrue
-	}
 	cond := s.findOrAppendSBRStorageUnhealthyCondition(node)
-	if cond.Status == desiredStatus {
+	if cond.Status == status {
 		return nil
 	}
-	cond.Status = desiredStatus
+	cond.Status = status
 	cond.Reason = reason
 	cond.Message = message
 	cond.LastTransitionTime = now
@@ -1365,6 +1406,22 @@ func (s *SBDAgent) setNodeConditionSBRStorageUnhealthy(nodeName string, unhealth
 		return fmt.Errorf("update node %s status (SBRStorageUnhealthy): %w", nodeName, err)
 	}
 	return nil
+}
+
+// getSBRStorageUnhealthyCondition returns the current SBRStorageUnhealthy condition status and last transition time for the node.
+// If the condition is not present, returns (ConditionFalse, zero time, false).
+func (s *SBDAgent) getSBRStorageUnhealthyCondition(nodeName string) (corev1.ConditionStatus, time.Time, bool) {
+	node := &corev1.Node{}
+	if err := s.k8sClient.Get(s.ctx, client.ObjectKey{Name: nodeName}, node); err != nil {
+		return corev1.ConditionFalse, time.Time{}, false
+	}
+	for i := range node.Status.Conditions {
+		c := &node.Status.Conditions[i]
+		if c.Type == v1alpha1.NodeConditionSBRStorageUnhealthy {
+			return c.Status, c.LastTransitionTime.Time, true
+		}
+	}
+	return corev1.ConditionFalse, time.Time{}, false
 }
 
 // findOrAppendSBRStorageUnhealthyCondition returns the existing condition or appends a new one and returns it.
