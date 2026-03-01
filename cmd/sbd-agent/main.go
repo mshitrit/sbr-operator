@@ -149,6 +149,13 @@ const (
 	SBDAgentRemediationGracePeriod = 3 * time.Minute
 )
 
+// sbrUnhealthyConditionStaleAge is the duration after which SBRStorageUnhealthy=True is
+// considered stale and we set it to Unknown so NHC removes its remediation and the node agent
+// can run and report healthy. It is set at startup to (MaxConsecutiveFailures+1)*heartbeatInterval:
+// we wait long enough for the unhealthy node to have had time to self-fence (e.g. after
+// MaxConsecutiveFailures missed heartbeats) plus one extra heartbeat as buffer.
+var sbrUnhealthyConditionStaleAge time.Duration
+
 // Global logger instance
 var logger logr.Logger
 
@@ -1328,7 +1335,7 @@ func (s *SBDAgent) peerMonitorLoop() {
 				}
 
 				// Condition has been True too long: set Unknown (same as old "delete stale remediation") so NHC removes remediation and agent can report healthy
-				if currentStatus == corev1.ConditionTrue && now.Sub(lastTransition) > controller.SBDAgentOOSTaintStaleAge {
+				if currentStatus == corev1.ConditionTrue && now.Sub(lastTransition) > sbrUnhealthyConditionStaleAge {
 					if err := s.setNodeConditionSBRStorageUnhealthyStatus(peerNodeName, corev1.ConditionUnknown, "GivingAgentChance", "Condition stale; set Unknown so NHC removes remediation and agent can report healthy"); err != nil {
 						logger.Error(err, "Failed to set SBRStorageUnhealthy to Unknown for stale condition", "peerNodeName", peerNodeName)
 					} else {
@@ -2258,6 +2265,9 @@ func main() {
 	if heartbeatInterval < time.Second {
 		heartbeatInterval = time.Second // Minimum 1 second interval
 	}
+	// Stale age for SBRStorageUnhealthy=True: (MaxConsecutiveFailures+1)*heartbeatInterval so we wait
+	// for the unhealthy node to have had time to self-fence plus one heartbeat buffer before setting condition to Unknown.
+	sbrUnhealthyConditionStaleAge = time.Duration(MaxConsecutiveFailures+1) * heartbeatInterval
 
 	// Validate required parameters
 	if *sbdDevice == "" {
