@@ -1431,6 +1431,11 @@ var _ = Describe("Fence flow with real SBD agent", func() {
 		It("should write fence message to device", func() {
 			tmpDir, sbdPath, fencePath, worker1ID, worker2ID := setupFenceFlowBase("fence-flow-")
 
+			// Stale age for this test: (MaxConsecutiveFailures+1)*heartbeatInterval; heartbeatInterval is 1s
+			oldStale := sbrUnhealthyConditionStaleAge
+			sbrUnhealthyConditionStaleAge = time.Duration(MaxConsecutiveFailures+1) * time.Second
+			DeferCleanup(func() { sbrUnhealthyConditionStaleAge = oldStale })
+
 			By("Writing initial heartbeats for worker-1 and worker-2 on mock devices")
 			mockHeartbeatDevice := mocks.NewMockBlockDevice("/tmp/fence-test-heartbeat", 1024*1024)
 			mockFenceDevice := mocks.NewMockBlockDevice("/tmp/fence-test-fence", 1024*1024)
@@ -1501,6 +1506,26 @@ var _ = Describe("Fence flow with real SBD agent", func() {
 				}
 				return false
 			}, 15*time.Second, 500*time.Millisecond).Should(BeTrue(), "controller should write fence message with FENCE_REASON_HEARTBEAT_TIMEOUT")
+
+			By("Waiting for SBRStorageUnhealthy condition to become Unknown (stale age elapsed)")
+			Eventually(func(g Gomega) bool {
+				node := &corev1.Node{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: fenceFlowTargetNode}, node)).To(Succeed())
+				return isConditionExist(node.Status.Conditions, medik8sv1alpha1.NodeConditionSBRStorageUnhealthy, corev1.ConditionUnknown)
+			}, 15*time.Second, 500*time.Millisecond).Should(BeTrue(), "agent should set SBRStorageUnhealthy to Unknown after stale age")
+
+			By("Simulating worker-2 recovering (write heartbeats again)")
+			ts2 := uint64(time.Now().UnixNano())
+			for round := 0; round < 3; round++ {
+				Expect(mockHeartbeatDevice.WritePeerHeartbeat(worker2ID, ts2+uint64(round), uint64(round+100))).To(Succeed())
+			}
+
+			By("Waiting for SBRStorageUnhealthy condition to become False (recovered)")
+			Eventually(func(g Gomega) bool {
+				node := &corev1.Node{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: fenceFlowTargetNode}, node)).To(Succeed())
+				return isConditionExist(node.Status.Conditions, medik8sv1alpha1.NodeConditionSBRStorageUnhealthy, corev1.ConditionFalse)
+			}, 15*time.Second, 500*time.Millisecond).Should(BeTrue(), "agent should set SBRStorageUnhealthy to False when peer recovers")
 		})
 	})
 
