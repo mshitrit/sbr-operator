@@ -4,7 +4,7 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
-    createdAt: "2026-02-24T16:21:37Z"
+    createdAt: "2026-03-02T16:55:09Z"
     operators.operatorframework.io/builder: operator-sdk-v1.33.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     containerImage: quay.io/medik8s/sbd-operator:latest
@@ -239,6 +239,8 @@ spec:
                         valueFrom:
                           fieldRef:
                             fieldPath: metadata.namespace
+                      - name: RELATED_IMAGE_SBD_AGENT
+                        value: quay.io/medik8s/sbd-agent:latest
                     image: quay.io/medik8s/sbd-operator:latest
                     livenessProbe:
                       httpGet:
@@ -328,5 +330,8 @@ spec:
   maturity: alpha
   provider:
     name: medik8s
+  relatedImages:
+    - image: quay.io/medik8s/sbd-agent:latest
+      name: sbd-agent
   version: 0.0.1
   minKubeVersion: 1.26.0
