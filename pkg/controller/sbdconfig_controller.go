@@ -80,11 +80,6 @@ const (
 	DefaultSBDAgentImage = "sbd-agent:latest"
 	SBDOperatorName      = "sbd-operator"
 
-	// EnvRelatedImageSBDAgent is the environment variable name set by OLM in the ClusterServiceVersion
-	// (RELATED_IMAGE_SBD_AGENT). When set, the operator uses this image for the SBD agent DaemonSet
-	// instead of inferring from the operator pod. OLM substitutes the value from the bundle in CI and production.
-	EnvRelatedImageSBDAgent = "RELATED_IMAGE_SBD_AGENT"
-
 	// Retry configuration constants for SBDConfig controller
 	// MaxSBDConfigRetries is the maximum number of retry attempts for SBDConfig operations
 	MaxSBDConfigRetries = 3
@@ -191,13 +186,6 @@ func (r *SBDConfigReconciler) emitEventf(
 // It uses environment variables (POD_NAME, POD_NAMESPACE) to find the current pod
 // and extracts the image from the pod spec
 func (r *SBDConfigReconciler) getOperatorImage(ctx context.Context, logger logr.Logger) string {
-	// Prefer an explicitly set agent image (e.g. set by OLM from EnvRelatedImageSBDAgent in the CSV,
-	// which bundle substitution rewrites to the correct image in CI and production).
-	if img := os.Getenv(EnvRelatedImageSBDAgent); img != "" {
-		logger.Info("Using RELATED_IMAGE_SBD_AGENT for agent image", "image", img)
-		return img
-	}
-
 	// Try to get pod information from environment variables (set by Downward API)
 	podName := os.Getenv("POD_NAME")
 	podNamespace := os.Getenv("POD_NAMESPACE")

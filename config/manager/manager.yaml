@@ -76,8 +76,6 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        - name: RELATED_IMAGE_SBD_AGENT
-          value: quay.io/medik8s/sbd-agent:latest
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
