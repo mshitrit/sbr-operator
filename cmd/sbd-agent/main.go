@@ -38,6 +38,7 @@ import (
 	// Kubernetes imports for StorageBasedRemediation CR watching
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -147,13 +148,17 @@ const (
 	SBDAgentRemediationGraceAnnotationKey = "medik8s.io/sbd-remediation-grace-at"
 	// SBDAgentRemediationGracePeriod is the minimum time to wait between deletion and re-creation.
 	SBDAgentRemediationGracePeriod = 3 * time.Minute
+
+	// RemediationCheckTimeout is the timeout for checking if a StorageBasedRemediation CR exists
+	// when SBD is unhealthy; used to avoid blocking the watchdog loop.
+	RemediationCheckTimeout = 5 * time.Second
 )
 
 // sbrUnhealthyConditionStaleAge is the duration after which SBRStorageUnhealthy=True is
 // considered stale and we set it to Unknown so NHC removes its remediation and the node agent
-// can run and report healthy. It is set at startup to (MaxConsecutiveFailures+1)*heartbeatInterval:
-// we wait long enough for the unhealthy node to have had time to self-fence (e.g. after
-// MaxConsecutiveFailures missed heartbeats) plus one extra heartbeat as buffer.
+// can run and report healthy. Set at startup to (MaxConsecutiveFailures+1)*heartbeatInterval + RemediationCheckTimeout:
+// we wait long enough for the unhealthy node to self-fence (e.g. after MaxConsecutiveFailures missed heartbeats),
+// plus one heartbeat buffer, plus time for the remediation CR API check.
 var sbrUnhealthyConditionStaleAge time.Duration
 
 // Global logger instance
@@ -782,7 +787,24 @@ func (s *SBDAgent) isSBDHealthy() bool {
 	return s.sbdHealthy
 }
 
-// getNextHeartbeatSequence safely increments and returns the next sequence number
+// remediationExistsForThisNode checks if a StorageBasedRemediation CR exists for this node.
+// Uses a short timeout to avoid blocking the watchdog loop. Returns (true, nil) if the CR
+// exists, (false, nil) if it does not (IsNotFound), and (false, err) on API errors or timeout.
+// Used when SBD is unhealthy: if we have API access and no CR exists, we pet the watchdog
+// and let NHC decide (e.g. too many nodes down); only skip petting when CR exists or no API access.
+func (s *SBDAgent) remediationExistsForThisNode(ctx context.Context) (bool, error) {
+	checkCtx, cancel := context.WithTimeout(ctx, RemediationCheckTimeout)
+	defer cancel()
+	remediation := &v1alpha1.StorageBasedRemediation{}
+	err := s.k8sClient.Get(checkCtx, client.ObjectKey{Namespace: s.controllerNamespace, Name: s.nodeName}, remediation)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
 func (s *SBDAgent) getNextHeartbeatSequence() uint64 {
 	s.heartbeatSeqMutex.Lock()
 	defer s.heartbeatSeqMutex.Unlock()
@@ -1188,13 +1210,35 @@ func (s *SBDAgent) watchdogLoop() {
 					logger.Info("SBD unhealthy in detect-only mode (watchdog disarmed, no reboot)",
 						"sbdDevicePath", s.heartbeatDevicePath)
 				} else {
-					s.recorder.Event(s.recorderObject, "Warning", "SBDUnhealthyWatchdogTimeout",
-						fmt.Sprintf("SBD device unhealthy on (%s, %d); skipping watchdog pet, reboot imminent", s.nodeName, s.nodeID))
-					logger.Error(nil, "Skipping watchdog pet - SBD device is unhealthy",
-						"sbdDevicePath", s.heartbeatDevicePath,
-						"sbdHealthy", s.isSBDHealthy())
-					// This will cause the system to reboot via watchdog timeout
-					// This is the desired behavior for self-fencing when SBD fails
+					// Check if a remediation CR exists for this node when we have API access.
+					// If no CR exists, pet the watchdog and let NHC decide (e.g. too many nodes down).
+					// Only skip petting (trigger reboot) when CR exists or we have no API access.
+					remediationExists, checkErr := s.remediationExistsForThisNode(s.ctx)
+					if checkErr != nil {
+						// No API access or transient error: treat as "cannot know" -> skip pet, allow reboot
+						s.recorder.Event(s.recorderObject, "Warning", "SBDUnhealthyWatchdogTimeout",
+							fmt.Sprintf("SBD device unhealthy on (%s, %d); API check failed, skipping watchdog pet, reboot imminent", s.nodeName, s.nodeID))
+						logger.Error(checkErr, "Skipping watchdog pet - SBD unhealthy and could not verify remediation CR",
+							"sbdDevicePath", s.heartbeatDevicePath)
+					} else if remediationExists {
+						// CR exists: NHC has decided to remediate this node -> skip pet, allow reboot
+						s.recorder.Event(s.recorderObject, "Warning", "SBDUnhealthyWatchdogTimeout",
+							fmt.Sprintf("SBD device unhealthy on (%s, %d); remediation CR exists, skipping watchdog pet, reboot imminent", s.nodeName, s.nodeID))
+						logger.Error(nil, "Skipping watchdog pet - SBD device is unhealthy and remediation CR exists",
+							"sbdDevicePath", s.heartbeatDevicePath,
+							"sbdHealthy", s.isSBDHealthy())
+					} else {
+						// API access and no CR: pet watchdog to avoid reboot, let NHC decide
+						if err := s.watchdog.Pet(); err != nil {
+							logger.Error(err, "Failed to pet watchdog while SBD unhealthy (no remediation CR); retry next tick",
+								"watchdogPath", s.watchdog.Path())
+						} else {
+							watchdogPetsCounter.Inc()
+							logger.Info("SBD unhealthy but no remediation CR for this node; petting watchdog to allow NHC to decide",
+								"sbdDevicePath", s.heartbeatDevicePath, "nodeName", s.nodeName)
+						}
+					}
+					// When we skip petting above, watchdog timeout will cause reboot (desired self-fencing behavior)
 				}
 			}
 		}
@@ -2265,9 +2309,10 @@ func main() {
 	if heartbeatInterval < time.Second {
 		heartbeatInterval = time.Second // Minimum 1 second interval
 	}
-	// Stale age for SBRStorageUnhealthy=True: (MaxConsecutiveFailures+1)*heartbeatInterval so we wait
-	// for the unhealthy node to have had time to self-fence plus one heartbeat buffer before setting condition to Unknown.
-	sbrUnhealthyConditionStaleAge = time.Duration(MaxConsecutiveFailures+1) * heartbeatInterval
+	// Stale age for SBRStorageUnhealthy=True: (MaxConsecutiveFailures+1)*heartbeatInterval + RemediationCheckTimeout
+	// so we wait for the unhealthy node to have had time to self-fence plus one heartbeat buffer, plus time for
+	// the remediation CR check (Get with RemediationCheckTimeout) before setting condition to Unknown.
+	sbrUnhealthyConditionStaleAge = time.Duration(MaxConsecutiveFailures+1)*heartbeatInterval + RemediationCheckTimeout
 
 	// Validate required parameters
 	if *sbdDevice == "" {
