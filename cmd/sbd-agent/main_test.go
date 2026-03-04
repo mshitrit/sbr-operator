@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -32,9 +33,13 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	medik8sv1alpha1 "github.com/medik8s/sbd-operator/api/v1alpha1"
 	"github.com/medik8s/sbd-operator/pkg/blockdevice"
@@ -47,6 +52,73 @@ const (
 	// Test constants
 	nonExistentWatchdogPath = "/non/existent/watchdog"
 )
+
+// failingRemediationGetClient wraps a client.Client and returns a fixed error for Get
+// when the object is StorageBasedRemediation and the key matches the given namespace/name.
+// Used to simulate API unreachable in tests.
+type failingRemediationGetClient struct {
+	delegate      client.Client
+	failNamespace string
+	failName      string
+	err           error
+}
+
+func (c *failingRemediationGetClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	if _, ok := obj.(*medik8sv1alpha1.StorageBasedRemediation); ok && key.Namespace == c.failNamespace && key.Name == c.failName {
+		return c.err
+	}
+	return c.delegate.Get(ctx, key, obj, opts...)
+}
+
+func (c *failingRemediationGetClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	return c.delegate.List(ctx, list, opts...)
+}
+
+func (c *failingRemediationGetClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+	return c.delegate.Create(ctx, obj, opts...)
+}
+
+func (c *failingRemediationGetClient) Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
+	return c.delegate.Delete(ctx, obj, opts...)
+}
+
+func (c *failingRemediationGetClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+	return c.delegate.Update(ctx, obj, opts...)
+}
+
+func (c *failingRemediationGetClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+	return c.delegate.Patch(ctx, obj, patch, opts...)
+}
+
+func (c *failingRemediationGetClient) DeleteAllOf(ctx context.Context, obj client.Object, opts ...client.DeleteAllOfOption) error {
+	return c.delegate.DeleteAllOf(ctx, obj, opts...)
+}
+
+func (c *failingRemediationGetClient) Status() client.SubResourceWriter {
+	return c.delegate.Status()
+}
+
+func (c *failingRemediationGetClient) SubResource(subResource string) client.SubResourceClient {
+	return c.delegate.SubResource(subResource)
+}
+
+func (c *failingRemediationGetClient) Scheme() *runtime.Scheme {
+	return c.delegate.Scheme()
+}
+
+func (c *failingRemediationGetClient) RESTMapper() meta.RESTMapper {
+	return c.delegate.RESTMapper()
+}
+
+func (c *failingRemediationGetClient) GroupVersionKindFor(obj runtime.Object) (schema.GroupVersionKind, error) {
+	return c.delegate.GroupVersionKindFor(obj)
+}
+
+func (c *failingRemediationGetClient) IsObjectNamespaced(obj runtime.Object) (bool, error) {
+	return c.delegate.IsObjectNamespaced(obj)
+}
+
+var _ client.Client = &failingRemediationGetClient{}
 
 // createTestSBDAgent creates a test SBD agent with mock devices and temporary SBD files
 func createTestSBDAgent(t *testing.T, metricsPort int) (
@@ -1579,6 +1651,64 @@ var _ = Describe("Fence flow with real SBD agent", func() {
 				}
 			}
 			Expect(foundDetectOnly).To(BeTrue(), "expected at least one SBDUnhealthyDetectOnly event when SBD unhealthy in detect-only mode")
+		})
+	})
+
+	Context("when SBD is unhealthy and not in detect-only mode", func() {
+		const petWhenNoCRMetricsPort = 9657
+
+		It("should pet watchdog when no StorageBasedRemediation CR exists for this node", func() {
+			tmpDir, sbdPath, _, worker1ID, worker2ID := setupFenceFlowBase("pet-when-no-cr-")
+
+			By("Writing initial heartbeats for worker-1 and worker-2 on mock devices")
+			mockHeartbeatDevice := mocks.NewMockBlockDevice("/tmp/pet-when-no-cr-heartbeat", 1024*1024)
+			mockFenceDevice := mocks.NewMockBlockDevice("/tmp/pet-when-no-cr-fence", 1024*1024)
+			ts := uint64(time.Now().UnixNano())
+			for round := 0; round < 3; round++ {
+				Expect(mockHeartbeatDevice.WritePeerHeartbeat(worker1ID, ts+uint64(round), uint64(round+1))).To(Succeed())
+				Expect(mockHeartbeatDevice.WritePeerHeartbeat(worker2ID, ts+uint64(round), uint64(round+1))).To(Succeed())
+			}
+
+			By("Making heartbeat writes fail so SBD becomes unhealthy after MaxConsecutiveFailures")
+			mockHeartbeatDevice.SetFailWrite(true)
+
+			By("Creating mock event recorder and SBDConfig for event verification")
+			mockRecorder := mocks.NewMockEventRecorder()
+			recorderObject := &medik8sv1alpha1.SBDConfig{
+				ObjectMeta: metav1.ObjectMeta{Name: "pet-when-no-cr-config", Namespace: "default"},
+			}
+
+			By("Creating real SBD agent (not detect-only) and overriding recorder")
+			mockWatchdog := mocks.NewMockWatchdog(filepath.Join(tmpDir, "watchdog"))
+			agent, err := NewSBDAgentWithWatchdog(mockWatchdog, sbdPath, "worker-1", "test-cluster", worker1ID,
+				1*time.Second, 1*time.Second, 1*time.Second, 1*time.Second, fenceFlowSBDTimeout, "panic", petWhenNoCRMetricsPort,
+				10*time.Minute, true, 2*time.Second,
+				k8sClient, cfg, createManagerPrefix(), false)
+			Expect(err).NotTo(HaveOccurred())
+			agent.recorder = mockRecorder
+			agent.recorderObject = recorderObject
+			agent.setSBDDevices(mockHeartbeatDevice, mockFenceDevice)
+			startFenceFlowAgent(agent)
+
+			By("Waiting for heartbeat failures to mark SBD unhealthy and watchdog loop to pet (no remediation CR)")
+			// MaxConsecutiveFailures=7 at 1s heartbeat interval -> ~7s until SBD unhealthy; then pet interval 1s
+			time.Sleep(12 * time.Second)
+
+			By("Verifying agent changed SBD status and petted watchdog (no CR -> keep node alive)")
+			Expect(mockWatchdog.GetPetCount()).To(BeNumerically(">=", 1),
+				"expected at least one pet when SBD unhealthy and no StorageBasedRemediation CR")
+
+			By("Verifying SBD in unhealthy because it can't write")
+			Expect(agent.isSBDHealthy()).To(BeFalse())
+
+			By("Verifying fencing did not happen (no SelfFenceInitiated, no SBDUnhealthyWatchdogTimeout)")
+			events := mockRecorder.GetEvents()
+			for _, e := range events {
+				Expect(e.Reason).NotTo(Equal("SelfFenceInitiated"),
+					"fencing must not happen when no CR and agent pets watchdog")
+				Expect(e.Reason).NotTo(Equal("SBDUnhealthyWatchdogTimeout"),
+					"should not emit SBDUnhealthyWatchdogTimeout when we pet to avoid reboot")
+			}
 		})
 	})
 })
