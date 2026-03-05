@@ -792,8 +792,8 @@ func (s *SBDAgent) isSBDHealthy() bool {
 // exists, (false, nil) if it does not (IsNotFound), and (false, err) on API errors or timeout.
 // Used when SBD is unhealthy: if we have API access and no CR exists, we pet the watchdog
 // and let NHC decide (e.g. too many nodes down); only skip petting when CR exists or no API access.
-func (s *SBDAgent) remediationExistsForThisNode(ctx context.Context) (bool, error) {
-	checkCtx, cancel := context.WithTimeout(ctx, RemediationCheckTimeout)
+func (s *SBDAgent) remediationExistsForThisNode() (bool, error) {
+	checkCtx, cancel := context.WithTimeout(s.ctx, RemediationCheckTimeout)
 	defer cancel()
 	remediation := &v1alpha1.StorageBasedRemediation{}
 	err := s.k8sClient.Get(checkCtx, client.ObjectKey{Namespace: s.controllerNamespace, Name: s.nodeName}, remediation)
@@ -805,6 +805,7 @@ func (s *SBDAgent) remediationExistsForThisNode(ctx context.Context) (bool, erro
 	}
 	return true, nil
 }
+
 func (s *SBDAgent) getNextHeartbeatSequence() uint64 {
 	s.heartbeatSeqMutex.Lock()
 	defer s.heartbeatSeqMutex.Unlock()
@@ -900,24 +901,35 @@ func (s *SBDAgent) resetFailureCount(operationType string) {
 func (s *SBDAgent) shouldTriggerSelfFence() (bool, string) {
 	s.failureCountMutex.RLock()
 	defer s.failureCountMutex.RUnlock()
-
+	shouldSelfFence := false
+	msg := ""
 	if s.watchdogFailureCount >= MaxConsecutiveFailures {
 		s.recorder.Event(s.recorderObject, "Warning", "WatchdogPetFailed",
 			fmt.Sprintf("Watchdog pet failures on (%s, %d) exceeded threshold", s.nodeName, s.nodeID))
-		return true, fmt.Sprintf("watchdog pet failures exceeded threshold (%d)", MaxConsecutiveFailures)
-	}
-	if s.sbdFailureCount >= MaxConsecutiveFailures {
+		shouldSelfFence = true
+		msg = fmt.Sprintf("watchdog pet failures exceeded threshold (%d)", MaxConsecutiveFailures)
+	} else if s.sbdFailureCount >= MaxConsecutiveFailures {
 		s.recorder.Event(s.recorderObject, "Warning", "SBDWriteFailed",
 			fmt.Sprintf("SBD device write failures on (%s, %d) exceeded threshold", s.nodeName, s.nodeID))
-		return true, fmt.Sprintf("SBD device failures exceeded threshold (%d)", MaxConsecutiveFailures)
-	}
-	if s.heartbeatFailureCount >= MaxConsecutiveFailures {
+		shouldSelfFence = true
+		msg = fmt.Sprintf("SBD device failures exceeded threshold (%d)", MaxConsecutiveFailures)
+	} else if s.heartbeatFailureCount >= MaxConsecutiveFailures {
 		s.recorder.Event(s.recorderObject, "Warning", "HeartbeatWriteFailed",
 			fmt.Sprintf("Heartbeat write failures on (%s, %d) exceeded threshold", s.nodeName, s.nodeID))
-		return true, fmt.Sprintf("heartbeat write failures exceeded threshold (%d)", MaxConsecutiveFailures)
+		shouldSelfFence = true
+		msg = fmt.Sprintf("heartbeat write failures exceeded threshold (%d)", MaxConsecutiveFailures)
 	}
-
-	return false, ""
+	if shouldSelfFence {
+		if remediationExist, err := s.remediationExistsForThisNode(); err == nil && !remediationExist {
+			s.recorder.Event(s.recorderObject, "Warning", "SelfFenceAbortedNoRemediation",
+				fmt.Sprintf("Aborting self-fence on (%s, %d); no StorageBasedRemediation CR for this node, petting watchdog to allow NHC to decide", s.nodeName, s.nodeID))
+			logger.Info("Aborting self-fence - no StorageBasedRemediation CR for this node; petting watchdog to allow NHC to decide",
+				"reason", msg, "sbdDevicePath", s.heartbeatDevicePath, "nodeName", s.nodeName)
+			shouldSelfFence = false
+			msg = fmt.Sprintf("self-fence aborted (no remediation CR): %s", msg)
+		}
+	}
+	return shouldSelfFence, msg
 }
 
 // writeHeartbeatToSBD writes a heartbeat message to the node's designated slot
@@ -1213,7 +1225,7 @@ func (s *SBDAgent) watchdogLoop() {
 					// Check if a remediation CR exists for this node when we have API access.
 					// If no CR exists, pet the watchdog and let NHC decide (e.g. too many nodes down).
 					// Only skip petting (trigger reboot) when CR exists or we have no API access.
-					remediationExists, checkErr := s.remediationExistsForThisNode(s.ctx)
+					remediationExists, checkErr := s.remediationExistsForThisNode()
 					if checkErr != nil {
 						// No API access or transient error: treat as "cannot know" -> skip pet, allow reboot
 						s.recorder.Event(s.recorderObject, "Warning", "SBDUnhealthyWatchdogTimeout",
