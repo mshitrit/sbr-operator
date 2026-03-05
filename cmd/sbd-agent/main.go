@@ -1309,7 +1309,7 @@ func (s *SBDAgent) peerMonitorLoop() {
 			logger.Info("Peer monitor loop stopping")
 			return
 		case <-ticker.C:
-			// First, check our own slot for fence messages directed at us
+			// First, check our own slot for fence messages directed at us, will trigger fencing in case found
 			if err := s.readOwnSlotForFenceMessage(); err != nil {
 				logger.Info("Error reading own slot for fence messages", "error", err)
 				s.incrementFailureCount("sbd")

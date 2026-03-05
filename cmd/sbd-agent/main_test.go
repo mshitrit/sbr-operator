@@ -1635,27 +1635,23 @@ var _ = Describe("Fence flow with real SBD agent", func() {
 			events := mockRecorder.GetEvents()
 
 			By("Verifying no remediation events: SelfFenceInitiated and SBDUnhealthyWatchdogTimeout must not be emitted")
-			for _, e := range events {
-				Expect(e.Reason).NotTo(Equal("SelfFenceInitiated"),
-					"detect-only mode must not emit SelfFenceInitiated")
-				Expect(e.Reason).NotTo(Equal("SBDUnhealthyWatchdogTimeout"),
-					"detect-only mode must not emit SBDUnhealthyWatchdogTimeout (watchdog disarmed)")
-			}
+			Expect(events).NotTo(ContainElement(HaveField("Reason", Equal("SelfFenceInitiated"))),
+				"detect-only mode must not emit SelfFenceInitiated")
+			Expect(events).NotTo(ContainElement(HaveField("Reason", Equal("SBDUnhealthyWatchdogTimeout"))),
+				"detect-only mode must not emit SBDUnhealthyWatchdogTimeout (watchdog disarmed)")
 
 			By("Verifying SBDUnhealthyDetectOnly was emitted when SBD became unhealthy")
-			var foundDetectOnly bool
-			for _, e := range events {
-				if e.Reason == "SBDUnhealthyDetectOnly" {
-					foundDetectOnly = true
-					break
-				}
-			}
-			Expect(foundDetectOnly).To(BeTrue(), "expected at least one SBDUnhealthyDetectOnly event when SBD unhealthy in detect-only mode")
+			Expect(events).To(
+				ContainElement(HaveField("Reason", Equal("SBDUnhealthyDetectOnly"))),
+				"expected at least one SBDUnhealthyDetectOnly event when SBD unhealthy in detect-only mode")
 		})
 	})
 
 	Context("when SBD is unhealthy and not in detect-only mode", func() {
-		const petWhenNoCRMetricsPort = 9657
+		const (
+			petWhenNoCRMetricsPort     = 9657
+			petWhenCRExistsMetricsPort = 9658
+		)
 
 		It("should pet watchdog when no StorageBasedRemediation CR exists for this node", func() {
 			tmpDir, sbdPath, _, worker1ID, worker2ID := setupFenceFlowBase("pet-when-no-cr-")
@@ -1711,12 +1707,91 @@ var _ = Describe("Fence flow with real SBD agent", func() {
 
 			By("Verifying fencing did not happen (no SelfFenceInitiated, no SBDUnhealthyWatchdogTimeout)")
 			events := mockRecorder.GetEvents()
-			for _, e := range events {
-				Expect(e.Reason).NotTo(Equal("SelfFenceInitiated"),
-					"fencing must not happen when no CR and agent pets watchdog")
-				Expect(e.Reason).NotTo(Equal("SBDUnhealthyWatchdogTimeout"),
-					"should not emit SBDUnhealthyWatchdogTimeout when we pet to avoid reboot")
+			Expect(events).NotTo(ContainElement(HaveField("Reason", Equal("SelfFenceInitiated"))),
+				"fencing must not happen when no CR and agent pets watchdog")
+			Expect(events).NotTo(ContainElement(HaveField("Reason", Equal("SBDUnhealthyWatchdogTimeout"))),
+				"should not emit SBDUnhealthyWatchdogTimeout when we pet to avoid reboot")
+		})
+
+		It("should trigger self-fence when StorageBasedRemediation CR exists for this node and SBD becomes unhealthy", func() {
+			tmpDir, sbdPath, _, worker1ID, worker2ID := setupFenceFlowBase("pet-when-cr-exists-")
+
+			By("Writing initial heartbeats for worker-1 and worker-2 on mock devices")
+			mockHeartbeatDevice := mocks.NewMockBlockDevice("/tmp/pet-when-cr-exists-heartbeat", 1024*1024)
+			mockFenceDevice := mocks.NewMockBlockDevice("/tmp/pet-when-cr-exists-fence", 1024*1024)
+			ts := uint64(time.Now().UnixNano())
+			for round := 0; round < 3; round++ {
+				Expect(mockHeartbeatDevice.WritePeerHeartbeat(worker1ID, ts+uint64(round), uint64(round+1))).To(Succeed())
+				Expect(mockHeartbeatDevice.WritePeerHeartbeat(worker2ID, ts+uint64(round), uint64(round+1))).To(Succeed())
 			}
+
+			controllerNamespace := createManagerPrefix()
+			By("Creating namespace for remediation CR (CR created after SBD is healthy)")
+			ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: controllerNamespace}}
+			Expect(k8sClient.Create(ctx, ns)).To(Succeed())
+			DeferCleanup(func() { _ = k8sClient.Delete(ctx, ns) })
+
+			By("Creating mock event recorder and SBDConfig for event verification")
+			mockRecorder := mocks.NewMockEventRecorder()
+			recorderObject := &medik8sv1alpha1.SBDConfig{
+				ObjectMeta: metav1.ObjectMeta{Name: "pet-when-cr-exists-config", Namespace: "default"},
+			}
+
+			By("Creating real SBD agent (not detect-only) and overriding recorder")
+			mockWatchdog := mocks.NewMockWatchdog(filepath.Join(tmpDir, "watchdog"))
+			// Use RebootMethodNone so executeSelfFencing emits the event and returns without panicking.
+			agent, err := NewSBDAgentWithWatchdog(mockWatchdog, sbdPath, "worker-1", "test-cluster", worker1ID,
+				1*time.Second, 1*time.Second, 1*time.Second, 1*time.Second, fenceFlowSBDTimeout, RebootMethodNone, petWhenCRExistsMetricsPort,
+				10*time.Minute, true, 2*time.Second,
+				k8sClient, cfg, controllerNamespace, false)
+			Expect(err).NotTo(HaveOccurred())
+			agent.recorder = mockRecorder
+			agent.recorderObject = recorderObject
+			agent.setSBDDevices(mockHeartbeatDevice, mockFenceDevice)
+			startFenceFlowAgent(agent)
+
+			By("Waiting for agent to pet and SBD to be healthy (writes succeeding)")
+			Eventually(func(g Gomega) {
+				g.Expect(mockWatchdog.GetPetCount()).To(BeNumerically(">=", 1), "expected at least one pet when SBD healthy")
+				g.Expect(agent.isSBDHealthy()).To(BeTrue(), "expected SBD to be healthy after successful writes")
+			}, 15*time.Second, 500*time.Millisecond).Should(Succeed())
+
+			By("Creating StorageBasedRemediation CR for this node now that SBD is healthy (so agent will trigger self-fence when unhealthy)")
+			sbr := &medik8sv1alpha1.StorageBasedRemediation{
+				ObjectMeta: metav1.ObjectMeta{Name: "worker-1", Namespace: controllerNamespace},
+				Spec: medik8sv1alpha1.StorageBasedRemediationSpec{
+					Reason:         medik8sv1alpha1.SBDRemediationReasonHeartbeatTimeout,
+					TimeoutSeconds: 300,
+				},
+			}
+			Expect(k8sClient.Create(ctx, sbr)).To(Succeed())
+			DeferCleanup(func() { _ = k8sClient.Delete(ctx, sbr) })
+
+			By("Making heartbeat writes fail so SBD becomes unhealthy after MaxConsecutiveFailures")
+			mockHeartbeatDevice.SetFailWrite(true)
+
+			By("Waiting for SBD to become unhealthy (~7s at 1s heartbeat interval)")
+			var petCountWhenUnhealthy int
+			Eventually(func(g Gomega) {
+				g.Expect(agent.isSBDHealthy()).To(BeFalse(), "expected SBD to be unhealthy after heartbeat write failures")
+				petCountWhenUnhealthy = mockWatchdog.GetPetCount()
+			}, 15*time.Second, 500*time.Millisecond).Should(Succeed())
+
+			By("Verifying agent does not pet after SBD unhealthy when remediation CR exists (self-fence path)")
+			Consistently(func(g Gomega) {
+				g.Expect(mockWatchdog.GetPetCount()).To(Equal(petCountWhenUnhealthy),
+					"expected no additional pets when SBD unhealthy and agent triggers self-fence")
+			}, 5*time.Second, 500*time.Millisecond).Should(Succeed())
+
+			By("Verifying SelfFenceInitiated was emitted (CR exists, trigger self-fence)")
+			Expect(mockRecorder.GetEvents()).To(
+				ContainElement(HaveField("Reason", Equal("SelfFenceInitiated"))),
+				"expected SelfFenceInitiated when remediation CR exists and SBD unhealthy")
+
+			By("Verifying SBDUnhealthyWatchdogTimeout was not emitted (self-fence path, not skip-pet path)")
+			Expect(mockRecorder.GetEvents()).NotTo(
+				ContainElement(HaveField("Reason", Equal("SBDUnhealthyWatchdogTimeout"))),
+				"should not emit SBDUnhealthyWatchdogTimeout when triggering self-fence for existing CR")
 		})
 	})
 })
