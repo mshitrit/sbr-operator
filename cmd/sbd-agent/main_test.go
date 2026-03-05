@@ -1635,23 +1635,20 @@ var _ = Describe("Fence flow with real SBD agent", func() {
 			events := mockRecorder.GetEvents()
 
 			By("Verifying no remediation events: SelfFenceInitiated and SBDUnhealthyWatchdogTimeout must not be emitted")
-			Expect(events).NotTo(ContainElement(HaveField("Reason", Equal("SelfFenceInitiated"))),
+			Expect(events).NotTo(ContainElement(HaveField(EventFieldReason, Equal(EventReasonSelfFenceInitiated))),
 				"detect-only mode must not emit SelfFenceInitiated")
-			Expect(events).NotTo(ContainElement(HaveField("Reason", Equal("SBDUnhealthyWatchdogTimeout"))),
+			Expect(events).NotTo(ContainElement(HaveField(EventFieldReason, Equal(EventReasonSBDUnhealthyWatchdogTimeout))),
 				"detect-only mode must not emit SBDUnhealthyWatchdogTimeout (watchdog disarmed)")
 
 			By("Verifying SBDUnhealthyDetectOnly was emitted when SBD became unhealthy")
 			Expect(events).To(
-				ContainElement(HaveField("Reason", Equal("SBDUnhealthyDetectOnly"))),
+				ContainElement(HaveField(EventFieldReason, Equal(EventReasonSBDUnhealthyDetectOnly))),
 				"expected at least one SBDUnhealthyDetectOnly event when SBD unhealthy in detect-only mode")
 		})
 	})
 
 	Context("when SBD is unhealthy and not in detect-only mode", func() {
-		const (
-			petWhenNoCRMetricsPort     = 9657
-			petWhenCRExistsMetricsPort = 9658
-		)
+		const fenceFlowUnhealthyMetricsPort = 9657
 
 		It("should pet watchdog when no StorageBasedRemediation CR exists for this node", func() {
 			tmpDir, sbdPath, _, worker1ID, worker2ID := setupFenceFlowBase("pet-when-no-cr-")
@@ -1674,7 +1671,7 @@ var _ = Describe("Fence flow with real SBD agent", func() {
 			By("Creating real SBD agent (not detect-only) and overriding recorder")
 			mockWatchdog := mocks.NewMockWatchdog(filepath.Join(tmpDir, "watchdog"))
 			agent, err := NewSBDAgentWithWatchdog(mockWatchdog, sbdPath, "worker-1", "test-cluster", worker1ID,
-				1*time.Second, 1*time.Second, 1*time.Second, 1*time.Second, fenceFlowSBDTimeout, "panic", petWhenNoCRMetricsPort,
+				1*time.Second, 1*time.Second, 1*time.Second, 1*time.Second, fenceFlowSBDTimeout, "panic", fenceFlowUnhealthyMetricsPort,
 				10*time.Minute, true, 2*time.Second,
 				k8sClient, cfg, createManagerPrefix(), false)
 			Expect(err).NotTo(HaveOccurred())
@@ -1707,9 +1704,9 @@ var _ = Describe("Fence flow with real SBD agent", func() {
 
 			By("Verifying fencing did not happen (no SelfFenceInitiated, no SBDUnhealthyWatchdogTimeout)")
 			events := mockRecorder.GetEvents()
-			Expect(events).NotTo(ContainElement(HaveField("Reason", Equal("SelfFenceInitiated"))),
+			Expect(events).NotTo(ContainElement(HaveField(EventFieldReason, Equal(EventReasonSelfFenceInitiated))),
 				"fencing must not happen when no CR and agent pets watchdog")
-			Expect(events).NotTo(ContainElement(HaveField("Reason", Equal("SBDUnhealthyWatchdogTimeout"))),
+			Expect(events).NotTo(ContainElement(HaveField(EventFieldReason, Equal(EventReasonSBDUnhealthyWatchdogTimeout))),
 				"should not emit SBDUnhealthyWatchdogTimeout when we pet to avoid reboot")
 		})
 
@@ -1741,7 +1738,7 @@ var _ = Describe("Fence flow with real SBD agent", func() {
 			mockWatchdog := mocks.NewMockWatchdog(filepath.Join(tmpDir, "watchdog"))
 			// Use RebootMethodNone so executeSelfFencing emits the event and returns without panicking.
 			agent, err := NewSBDAgentWithWatchdog(mockWatchdog, sbdPath, "worker-1", "test-cluster", worker1ID,
-				1*time.Second, 1*time.Second, 1*time.Second, 1*time.Second, fenceFlowSBDTimeout, RebootMethodNone, petWhenCRExistsMetricsPort,
+				1*time.Second, 1*time.Second, 1*time.Second, 1*time.Second, fenceFlowSBDTimeout, RebootMethodNone, fenceFlowUnhealthyMetricsPort,
 				10*time.Minute, true, 2*time.Second,
 				k8sClient, cfg, controllerNamespace, false)
 			Expect(err).NotTo(HaveOccurred())
@@ -1785,12 +1782,12 @@ var _ = Describe("Fence flow with real SBD agent", func() {
 
 			By("Verifying SelfFenceInitiated was emitted (CR exists, trigger self-fence)")
 			Expect(mockRecorder.GetEvents()).To(
-				ContainElement(HaveField("Reason", Equal("SelfFenceInitiated"))),
+				ContainElement(HaveField(EventFieldReason, Equal(EventReasonSelfFenceInitiated))),
 				"expected SelfFenceInitiated when remediation CR exists and SBD unhealthy")
 
 			By("Verifying SBDUnhealthyWatchdogTimeout was not emitted (self-fence path, not skip-pet path)")
 			Expect(mockRecorder.GetEvents()).NotTo(
-				ContainElement(HaveField("Reason", Equal("SBDUnhealthyWatchdogTimeout"))),
+				ContainElement(HaveField(EventFieldReason, Equal(EventReasonSBDUnhealthyWatchdogTimeout))),
 				"should not emit SBDUnhealthyWatchdogTimeout when triggering self-fence for existing CR")
 		})
 	})

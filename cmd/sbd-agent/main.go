@@ -171,6 +171,20 @@ const (
 	RebootMethodNone            = "none"
 )
 
+// Event reasons for agent recorder (used in agent and tests)
+const (
+	EventFieldReason = "Reason" // Event field name for use in tests with HaveField
+
+	EventReasonSelfFenceInitiated            = "SelfFenceInitiated"            // Emitted when the agent triggers self-fence (reboot/panic)
+	EventReasonSBDUnhealthyWatchdogTimeout   = "SBDUnhealthyWatchdogTimeout"   // Emitted when SBD unhealthy and agent skips pet (CR exists or API check failed)
+	EventReasonSBDUnhealthyDetectOnly        = "SBDUnhealthyDetectOnly"        // Emitted in detect-only mode when SBD becomes unhealthy (watchdog disarmed)
+	EventReasonSelfFenceAbortedNoRemediation = "SelfFenceAbortedNoRemediation" // Emitted when self-fence aborted because no StorageBasedRemediation CR exists
+	EventReasonWatchdogPetFailed             = "WatchdogPetFailed"             // Emitted when watchdog pet failures exceed threshold
+	EventReasonSBDWriteFailed                = "SBDWriteFailed"                // Emitted when SBD device write failures exceed threshold
+	EventReasonHeartbeatWriteFailed          = "HeartbeatWriteFailed"          // Emitted when heartbeat write failures exceed threshold
+	EventReasonFenceMessageDetected          = "FenceMessageDetected"          // Emitted when a fence message is read from the agent's own slot
+)
+
 // metricsOnce ensures metrics are only registered once
 var metricsOnce sync.Once
 
@@ -904,24 +918,24 @@ func (s *SBDAgent) shouldTriggerSelfFence() (bool, string) {
 	shouldSelfFence := false
 	msg := ""
 	if s.watchdogFailureCount >= MaxConsecutiveFailures {
-		s.recorder.Event(s.recorderObject, "Warning", "WatchdogPetFailed",
+		s.recorder.Event(s.recorderObject, corev1.EventTypeWarning, EventReasonWatchdogPetFailed,
 			fmt.Sprintf("Watchdog pet failures on (%s, %d) exceeded threshold", s.nodeName, s.nodeID))
 		shouldSelfFence = true
 		msg = fmt.Sprintf("watchdog pet failures exceeded threshold (%d)", MaxConsecutiveFailures)
 	} else if s.sbdFailureCount >= MaxConsecutiveFailures {
-		s.recorder.Event(s.recorderObject, "Warning", "SBDWriteFailed",
+		s.recorder.Event(s.recorderObject, corev1.EventTypeWarning, EventReasonSBDWriteFailed,
 			fmt.Sprintf("SBD device write failures on (%s, %d) exceeded threshold", s.nodeName, s.nodeID))
 		shouldSelfFence = true
 		msg = fmt.Sprintf("SBD device failures exceeded threshold (%d)", MaxConsecutiveFailures)
 	} else if s.heartbeatFailureCount >= MaxConsecutiveFailures {
-		s.recorder.Event(s.recorderObject, "Warning", "HeartbeatWriteFailed",
+		s.recorder.Event(s.recorderObject, corev1.EventTypeWarning, EventReasonHeartbeatWriteFailed,
 			fmt.Sprintf("Heartbeat write failures on (%s, %d) exceeded threshold", s.nodeName, s.nodeID))
 		shouldSelfFence = true
 		msg = fmt.Sprintf("heartbeat write failures exceeded threshold (%d)", MaxConsecutiveFailures)
 	}
 	if shouldSelfFence {
 		if remediationExist, err := s.remediationExistsForThisNode(); err == nil && !remediationExist {
-			s.recorder.Event(s.recorderObject, "Warning", "SelfFenceAbortedNoRemediation",
+			s.recorder.Event(s.recorderObject, corev1.EventTypeWarning, EventReasonSelfFenceAbortedNoRemediation,
 				fmt.Sprintf("Aborting self-fence on (%s, %d); no StorageBasedRemediation CR for this node, petting watchdog to allow NHC to decide", s.nodeName, s.nodeID))
 			logger.Info("Aborting self-fence - no StorageBasedRemediation CR for this node; petting watchdog to allow NHC to decide",
 				"reason", msg, "sbdDevicePath", s.heartbeatDevicePath, "nodeName", s.nodeName)
@@ -1220,7 +1234,7 @@ func (s *SBDAgent) petWatchdogWhenHealthy() {
 func (s *SBDAgent) handleWatchdogTickSBDUnhealthy() {
 	agentHealthyGauge.Set(0)
 	if s.detectOnlyMode {
-		s.recorder.Event(s.recorderObject, "Warning", "SBDUnhealthyDetectOnly",
+		s.recorder.Event(s.recorderObject, corev1.EventTypeWarning, EventReasonSBDUnhealthyDetectOnly,
 			fmt.Sprintf("SBD device unhealthy on (%s, %d); detect-only mode, watchdog disarmed, no reboot", s.nodeName, s.nodeID))
 		logger.Info("SBD unhealthy in detect-only mode (watchdog disarmed, no reboot)",
 			"sbdDevicePath", s.heartbeatDevicePath)
@@ -1228,14 +1242,14 @@ func (s *SBDAgent) handleWatchdogTickSBDUnhealthy() {
 	}
 	remediationExists, checkErr := s.remediationExistsForThisNode()
 	if checkErr != nil {
-		s.recorder.Event(s.recorderObject, "Warning", "SBDUnhealthyWatchdogTimeout",
+		s.recorder.Event(s.recorderObject, corev1.EventTypeWarning, EventReasonSBDUnhealthyWatchdogTimeout,
 			fmt.Sprintf("SBD device unhealthy on (%s, %d); API check failed, skipping watchdog pet, reboot imminent", s.nodeName, s.nodeID))
 		logger.Error(checkErr, "Skipping watchdog pet - SBD unhealthy and could not verify remediation CR",
 			"sbdDevicePath", s.heartbeatDevicePath)
 		return
 	}
 	if remediationExists {
-		s.recorder.Event(s.recorderObject, "Warning", "SBDUnhealthyWatchdogTimeout",
+		s.recorder.Event(s.recorderObject, corev1.EventTypeWarning, EventReasonSBDUnhealthyWatchdogTimeout,
 			fmt.Sprintf("SBD device unhealthy on (%s, %d); remediation CR exists, skipping watchdog pet, reboot imminent", s.nodeName, s.nodeID))
 		logger.Error(nil, "Skipping watchdog pet - SBD device is unhealthy and remediation CR exists",
 			"sbdDevicePath", s.heartbeatDevicePath, "sbdHealthy", s.isSBDHealthy())
@@ -1713,7 +1727,7 @@ func (s *SBDAgent) executeSelfFencing(reason string) {
 		logger.Info("Detect-only mode: skipping self-fence", "reason", reason, "nodeName", s.nodeName)
 		return
 	}
-	s.recorder.Event(s.recorderObject, "Warning", "SelfFenceInitiated",
+	s.recorder.Event(s.recorderObject, corev1.EventTypeWarning, EventReasonSelfFenceInitiated,
 		fmt.Sprintf("Self-fencing initiated on (%s, %d): %s", s.nodeName, s.nodeID, reason))
 	logger.Error(nil, "Self-fencing initiated",
 		"reason", reason,
@@ -1834,7 +1848,7 @@ func (s *SBDAgent) readOwnSlotForFenceMessage() error {
 				"sourceNodeID", fenceMsg.Header.NodeID,
 				"targetNodeID", fenceMsg.TargetNodeID,
 				"fenceReason", sbdprotocol.GetFenceReasonName(fenceMsg.Reason))
-			s.recorder.Event(s.recorderObject, "Warning", "FenceMessageDetected",
+			s.recorder.Event(s.recorderObject, corev1.EventTypeWarning, EventReasonFenceMessageDetected,
 				fmt.Sprintf("Fence message detected in own slot (%s, %d) from %d, reason: %s",
 					s.nodeName, s.nodeID, fenceMsg.Header.NodeID, sbdprotocol.GetFenceReasonName(fenceMsg.Reason)))
 
