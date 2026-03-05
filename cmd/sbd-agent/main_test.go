@@ -1790,6 +1790,85 @@ var _ = Describe("Fence flow with real SBD agent", func() {
 				ContainElement(HaveField(EventFieldReason, Equal(EventReasonSBDUnhealthyWatchdogTimeout))),
 				"should not emit SBDUnhealthyWatchdogTimeout when triggering self-fence for existing CR")
 		})
+
+		It("should trigger self-fence when remediation CR check fails (API error, fail-safe)", func() {
+			tmpDir, sbdPath, _, worker1ID, worker2ID := setupFenceFlowBase("pet-when-api-fails-")
+
+			By("Writing initial heartbeats for worker-1 and worker-2 on mock devices")
+			mockHeartbeatDevice := mocks.NewMockBlockDevice("/tmp/pet-when-api-fails-heartbeat", 1024*1024)
+			mockFenceDevice := mocks.NewMockBlockDevice("/tmp/pet-when-api-fails-fence", 1024*1024)
+			ts := uint64(time.Now().UnixNano())
+			for round := 0; round < 3; round++ {
+				Expect(mockHeartbeatDevice.WritePeerHeartbeat(worker1ID, ts+uint64(round), uint64(round+1))).To(Succeed())
+				Expect(mockHeartbeatDevice.WritePeerHeartbeat(worker2ID, ts+uint64(round), uint64(round+1))).To(Succeed())
+			}
+
+			controllerNamespace := createManagerPrefix()
+			By("Wrapping k8s client to fail Get(StorageBasedRemediation) for this node (simulate API unreachable)")
+			failingClient := &failingRemediationGetClient{
+				delegate:      k8sClient,
+				failNamespace: controllerNamespace,
+				failName:      "worker-1",
+				err:           fmt.Errorf("simulated API unreachable"),
+			}
+
+			By("Creating mock event recorder and SBDConfig for event verification")
+			mockRecorder := mocks.NewMockEventRecorder()
+			recorderObject := &medik8sv1alpha1.SBDConfig{
+				ObjectMeta: metav1.ObjectMeta{Name: "pet-when-api-fails-config", Namespace: "default"},
+			}
+
+			By("Creating real SBD agent with failing remediation Get client and overriding recorder")
+			mockWatchdog := mocks.NewMockWatchdog(filepath.Join(tmpDir, "watchdog"))
+			// Use RebootMethodNone so executeSelfFencing emits the event and returns without panicking.
+			// When API check fails, shouldTriggerSelfFence keeps shouldSelfFence=true (fail-safe) and we self-fence.
+			agent, err := NewSBDAgentWithWatchdog(mockWatchdog, sbdPath, "worker-1", "test-cluster", worker1ID,
+				1*time.Second, 1*time.Second, 1*time.Second, 1*time.Second, fenceFlowSBDTimeout, RebootMethodNone, fenceFlowUnhealthyMetricsPort,
+				10*time.Minute, true, 2*time.Second,
+				failingClient, cfg, controllerNamespace, false)
+			Expect(err).NotTo(HaveOccurred())
+			agent.recorder = mockRecorder
+			agent.recorderObject = recorderObject
+			agent.setSBDDevices(mockHeartbeatDevice, mockFenceDevice)
+			startFenceFlowAgent(agent)
+
+			By("Waiting for agent to pet and SBD to be healthy (writes succeeding)")
+			Eventually(func(g Gomega) {
+				g.Expect(mockWatchdog.GetPetCount()).To(BeNumerically(">=", 1), "expected at least one pet when SBD healthy")
+				g.Expect(agent.isSBDHealthy()).To(BeTrue(), "expected SBD to be healthy after successful writes")
+			}, 15*time.Second, 500*time.Millisecond).Should(Succeed())
+
+			By("Making heartbeat writes fail so SBD becomes unhealthy after MaxConsecutiveFailures")
+			mockHeartbeatDevice.SetFailWrite(true)
+
+			By("Waiting for SBD to become unhealthy (~7s at 1s heartbeat interval)")
+			var petCountWhenUnhealthy int
+			Eventually(func(g Gomega) {
+				g.Expect(agent.isSBDHealthy()).To(BeFalse(), "expected SBD to be unhealthy after heartbeat write failures")
+				petCountWhenUnhealthy = mockWatchdog.GetPetCount()
+			}, 15*time.Second, 500*time.Millisecond).Should(Succeed())
+
+			By("Verifying agent does not pet after SBD unhealthy when API check fails (self-fence path)")
+			Consistently(func(g Gomega) {
+				g.Expect(mockWatchdog.GetPetCount()).To(Equal(petCountWhenUnhealthy),
+					"expected no additional pets when SBD unhealthy and we trigger self-fence")
+			}, 5*time.Second, 500*time.Millisecond).Should(Succeed())
+
+			By("Verifying SelfFenceInitiated was emitted (fail-safe: when API check fails we trigger self-fence)")
+			Expect(mockRecorder.GetEvents()).To(
+				ContainElement(HaveField(EventFieldReason, Equal(EventReasonSelfFenceInitiated))),
+				"expected SelfFenceInitiated when remediation CR check fails (fail-safe behavior)")
+
+			By("Verifying SBDUnhealthySkipPetAPIError was emitted (on a tick we hit handleWatchdogTickSBDUnhealthy with API error before self-fence)")
+			Expect(mockRecorder.GetEvents()).To(
+				ContainElement(HaveField(EventFieldReason, Equal(EventReasonSBDUnhealthySkipPetAPIError))),
+				"expected SBDUnhealthySkipPetAPIError when remediation CR check fails")
+
+			By("Verifying SBDUnhealthyWatchdogTimeout was not emitted (we use SBDUnhealthySkipPetAPIError for API failure path)")
+			Expect(mockRecorder.GetEvents()).NotTo(
+				ContainElement(HaveField(EventFieldReason, Equal(EventReasonSBDUnhealthyWatchdogTimeout))),
+				"should not emit SBDUnhealthyWatchdogTimeout when we trigger self-fence on API error")
+		})
 	})
 })
 

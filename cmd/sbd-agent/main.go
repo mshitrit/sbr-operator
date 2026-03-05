@@ -176,7 +176,8 @@ const (
 	EventFieldReason = "Reason" // Event field name for use in tests with HaveField
 
 	EventReasonSelfFenceInitiated            = "SelfFenceInitiated"            // Emitted when the agent triggers self-fence (reboot/panic)
-	EventReasonSBDUnhealthyWatchdogTimeout   = "SBDUnhealthyWatchdogTimeout"   // Emitted when SBD unhealthy and agent skips pet (CR exists or API check failed)
+	EventReasonSBDUnhealthyWatchdogTimeout   = "SBDUnhealthyWatchdogTimeout"   // Emitted when SBD unhealthy and remediation CR exists, skipping pet
+	EventReasonSBDUnhealthySkipPetAPIError   = "SBDUnhealthySkipPetAPIError"   // Emitted when SBD unhealthy and remediation CR check failed (API error), skipping pet
 	EventReasonSBDUnhealthyDetectOnly        = "SBDUnhealthyDetectOnly"        // Emitted in detect-only mode when SBD becomes unhealthy (watchdog disarmed)
 	EventReasonSelfFenceAbortedNoRemediation = "SelfFenceAbortedNoRemediation" // Emitted when self-fence aborted because no StorageBasedRemediation CR exists
 	EventReasonWatchdogPetFailed             = "WatchdogPetFailed"             // Emitted when watchdog pet failures exceed threshold
@@ -1242,7 +1243,7 @@ func (s *SBDAgent) handleWatchdogTickSBDUnhealthy() {
 	}
 	remediationExists, checkErr := s.remediationExistsForThisNode()
 	if checkErr != nil {
-		s.recorder.Event(s.recorderObject, corev1.EventTypeWarning, EventReasonSBDUnhealthyWatchdogTimeout,
+		s.recorder.Event(s.recorderObject, corev1.EventTypeWarning, EventReasonSBDUnhealthySkipPetAPIError,
 			fmt.Sprintf("SBD device unhealthy on (%s, %d); API check failed, skipping watchdog pet, reboot imminent", s.nodeName, s.nodeID))
 		logger.Error(checkErr, "Skipping watchdog pet - SBD unhealthy and could not verify remediation CR",
 			"sbdDevicePath", s.heartbeatDevicePath)
