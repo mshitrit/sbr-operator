@@ -1669,9 +1669,6 @@ var _ = Describe("Fence flow with real SBD agent", func() {
 				Expect(mockHeartbeatDevice.WritePeerHeartbeat(worker2ID, ts+uint64(round), uint64(round+1))).To(Succeed())
 			}
 
-			By("Making heartbeat writes fail so SBD becomes unhealthy after MaxConsecutiveFailures")
-			mockHeartbeatDevice.SetFailWrite(true)
-
 			By("Creating mock event recorder and SBDConfig for event verification")
 			mockRecorder := mocks.NewMockEventRecorder()
 			recorderObject := &medik8sv1alpha1.SBDConfig{
@@ -1690,16 +1687,27 @@ var _ = Describe("Fence flow with real SBD agent", func() {
 			agent.setSBDDevices(mockHeartbeatDevice, mockFenceDevice)
 			startFenceFlowAgent(agent)
 
-			By("Waiting for heartbeat failures to mark SBD unhealthy and watchdog loop to pet (no remediation CR)")
-			// MaxConsecutiveFailures=7 at 1s heartbeat interval -> ~7s until SBD unhealthy; then pet interval 1s
-			time.Sleep(12 * time.Second)
+			By("Waiting for agent to pet and SBD to be healthy (writes succeeding)")
+			Eventually(func(g Gomega) {
+				g.Expect(mockWatchdog.GetPetCount()).To(BeNumerically(">=", 1), "expected at least one pet when SBD healthy")
+				g.Expect(agent.isSBDHealthy()).To(BeTrue(), "expected SBD to be healthy after successful writes")
+			}, 15*time.Second, 500*time.Millisecond).Should(Succeed())
 
-			By("Verifying agent changed SBD status and petted watchdog (no CR -> keep node alive)")
-			Expect(mockWatchdog.GetPetCount()).To(BeNumerically(">=", 1),
-				"expected at least one pet when SBD unhealthy and no StorageBasedRemediation CR")
+			By("Making heartbeat writes fail so SBD becomes unhealthy after MaxConsecutiveFailures")
+			mockHeartbeatDevice.SetFailWrite(true)
 
-			By("Verifying SBD in unhealthy because it can't write")
-			Expect(agent.isSBDHealthy()).To(BeFalse())
+			By("Waiting for SBD to become unhealthy (~7s at 1s heartbeat interval)")
+			var petCountWhenUnhealthy int
+			Eventually(func(g Gomega) {
+				g.Expect(agent.isSBDHealthy()).To(BeFalse(), "expected SBD to be unhealthy after heartbeat write failures")
+				petCountWhenUnhealthy = mockWatchdog.GetPetCount()
+			}, 15*time.Second, 500*time.Millisecond).Should(Succeed())
+
+			By("Verifying pet continues after SBD is unhealthy (no remediation CR -> agent still pets)")
+			Eventually(func(g Gomega) {
+				g.Expect(mockWatchdog.GetPetCount()).To(BeNumerically(">", petCountWhenUnhealthy),
+					"expected at least one more pet after SBD became unhealthy (no CR path)")
+			}, 5*time.Second, 500*time.Millisecond).Should(Succeed())
 
 			By("Verifying fencing did not happen (no SelfFenceInitiated, no SBDUnhealthyWatchdogTimeout)")
 			events := mockRecorder.GetEvents()
