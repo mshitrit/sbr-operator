@@ -1189,72 +1189,66 @@ func (s *SBDAgent) watchdogLoop() {
 				return
 			}
 
-			// Only pet the watchdog if SBD device is healthy (or always in detect-only to keep watchdog disarmed)
 			if s.isSBDHealthy() {
-				// Use retry mechanism for watchdog petting
-				err := retry.Do(s.ctx, s.retryConfig, "pet watchdog", func() error {
-					return s.watchdog.Pet()
-				})
-
-				if err != nil {
-					s.incrementFailureCount("watchdog")
-					// Continue trying - don't exit on pet failure, let the failure count mechanism handle it
-				} else {
-					// Success - reset failure count and update metrics
-					s.resetFailureCount("watchdog")
-					logger.V(1).Info("Watchdog pet successful", "watchdogPath", s.watchdog.Path())
-
-					// Increment successful watchdog pets counter
-					watchdogPetsCounter.Inc()
-
-					// Update agent health status based on SBD health
-					if s.isSBDHealthy() {
-						agentHealthyGauge.Set(1)
-					}
-				}
+				s.petWatchdogWhenHealthy()
 			} else {
-				// SBD device is unhealthy
-				agentHealthyGauge.Set(0)
-				if s.detectOnlyMode {
-					s.recorder.Event(s.recorderObject, "Warning", "SBDUnhealthyDetectOnly",
-						fmt.Sprintf("SBD device unhealthy on (%s, %d); detect-only mode, watchdog disarmed, no reboot", s.nodeName, s.nodeID))
-
-					logger.Info("SBD unhealthy in detect-only mode (watchdog disarmed, no reboot)",
-						"sbdDevicePath", s.heartbeatDevicePath)
-				} else {
-					// Check if a remediation CR exists for this node when we have API access.
-					// If no CR exists, pet the watchdog and let NHC decide (e.g. too many nodes down).
-					// Only skip petting (trigger reboot) when CR exists or we have no API access.
-					remediationExists, checkErr := s.remediationExistsForThisNode()
-					if checkErr != nil {
-						// No API access or transient error: treat as "cannot know" -> skip pet, allow reboot
-						s.recorder.Event(s.recorderObject, "Warning", "SBDUnhealthyWatchdogTimeout",
-							fmt.Sprintf("SBD device unhealthy on (%s, %d); API check failed, skipping watchdog pet, reboot imminent", s.nodeName, s.nodeID))
-						logger.Error(checkErr, "Skipping watchdog pet - SBD unhealthy and could not verify remediation CR",
-							"sbdDevicePath", s.heartbeatDevicePath)
-					} else if remediationExists {
-						// CR exists: NHC has decided to remediate this node -> skip pet, allow reboot
-						s.recorder.Event(s.recorderObject, "Warning", "SBDUnhealthyWatchdogTimeout",
-							fmt.Sprintf("SBD device unhealthy on (%s, %d); remediation CR exists, skipping watchdog pet, reboot imminent", s.nodeName, s.nodeID))
-						logger.Error(nil, "Skipping watchdog pet - SBD device is unhealthy and remediation CR exists",
-							"sbdDevicePath", s.heartbeatDevicePath,
-							"sbdHealthy", s.isSBDHealthy())
-					} else {
-						// API access and no CR: pet watchdog to avoid reboot, let NHC decide
-						if err := s.watchdog.Pet(); err != nil {
-							logger.Error(err, "Failed to pet watchdog while SBD unhealthy (no remediation CR); retry next tick",
-								"watchdogPath", s.watchdog.Path())
-						} else {
-							watchdogPetsCounter.Inc()
-							logger.Info("SBD unhealthy but no remediation CR for this node; petting watchdog to allow NHC to decide",
-								"sbdDevicePath", s.heartbeatDevicePath, "nodeName", s.nodeName)
-						}
-					}
-					// When we skip petting above, watchdog timeout will cause reboot (desired self-fencing behavior)
-				}
+				s.handleWatchdogTickSBDUnhealthy()
 			}
 		}
 	}
+}
+
+// petWatchdogWhenHealthy pets the watchdog when SBD is healthy, with retry and failure count handling.
+func (s *SBDAgent) petWatchdogWhenHealthy() {
+	err := retry.Do(s.ctx, s.retryConfig, "pet watchdog", func() error {
+		return s.watchdog.Pet()
+	})
+	if err != nil {
+		s.incrementFailureCount("watchdog")
+		return
+	}
+	s.resetFailureCount("watchdog")
+	logger.V(1).Info("Watchdog pet successful", "watchdogPath", s.watchdog.Path())
+	watchdogPetsCounter.Inc()
+	if s.isSBDHealthy() {
+		agentHealthyGauge.Set(1)
+	}
+}
+
+// handleWatchdogTickSBDUnhealthy handles one watchdog tick when SBD is unhealthy: detect-only event,
+// or remediation CR check and either skip pet (reboot) or pet (let NHC decide).
+func (s *SBDAgent) handleWatchdogTickSBDUnhealthy() {
+	agentHealthyGauge.Set(0)
+	if s.detectOnlyMode {
+		s.recorder.Event(s.recorderObject, "Warning", "SBDUnhealthyDetectOnly",
+			fmt.Sprintf("SBD device unhealthy on (%s, %d); detect-only mode, watchdog disarmed, no reboot", s.nodeName, s.nodeID))
+		logger.Info("SBD unhealthy in detect-only mode (watchdog disarmed, no reboot)",
+			"sbdDevicePath", s.heartbeatDevicePath)
+		return
+	}
+	remediationExists, checkErr := s.remediationExistsForThisNode()
+	if checkErr != nil {
+		s.recorder.Event(s.recorderObject, "Warning", "SBDUnhealthyWatchdogTimeout",
+			fmt.Sprintf("SBD device unhealthy on (%s, %d); API check failed, skipping watchdog pet, reboot imminent", s.nodeName, s.nodeID))
+		logger.Error(checkErr, "Skipping watchdog pet - SBD unhealthy and could not verify remediation CR",
+			"sbdDevicePath", s.heartbeatDevicePath)
+		return
+	}
+	if remediationExists {
+		s.recorder.Event(s.recorderObject, "Warning", "SBDUnhealthyWatchdogTimeout",
+			fmt.Sprintf("SBD device unhealthy on (%s, %d); remediation CR exists, skipping watchdog pet, reboot imminent", s.nodeName, s.nodeID))
+		logger.Error(nil, "Skipping watchdog pet - SBD device is unhealthy and remediation CR exists",
+			"sbdDevicePath", s.heartbeatDevicePath, "sbdHealthy", s.isSBDHealthy())
+		return
+	}
+	if err := s.watchdog.Pet(); err != nil {
+		logger.Error(err, "Failed to pet watchdog while SBD unhealthy (no remediation CR); retry next tick",
+			"watchdogPath", s.watchdog.Path())
+		return
+	}
+	watchdogPetsCounter.Inc()
+	logger.Info("SBD unhealthy but no remediation CR for this node; petting watchdog to allow NHC to decide",
+		"sbdDevicePath", s.heartbeatDevicePath, "nodeName", s.nodeName)
 }
 
 // heartbeatLoop continuously writes heartbeat messages to the SBD device
