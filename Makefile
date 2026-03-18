@@ -129,11 +129,6 @@ test-all: test test-e2e ## Run all tests: unit and e2e
 test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v -E '/e2e') -coverprofile cover.out
 
-.PHONY: sync-test-files
-sync-test-files: ## Sync shared configuration files to test directories.
-	@chmod +x scripts/sync-test-files.sh
-	@scripts/sync-test-files.sh
-
 TEST_ID=$(shell date +'%s')
 TEST_HOME=.tests
 E2E_TEST_DIR = $(TEST_HOME)/$(TEST_ID)
