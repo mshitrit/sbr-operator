@@ -123,11 +123,11 @@ fix-imports: sort-imports
 	$(SORT_IMPORTS) -w .
 
 .PHONY: test-all
-test-all: test test-smoke test-e2e ## Run all tests: unit tests, smoke tests, and e2e tests
+test-all: test test-e2e ## Run all tests: unit and e2e
 
 .PHONY: test
 test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v -E '/(e2e|smoke)') -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v -E '/e2e') -coverprofile cover.out
 
 .PHONY: sync-test-files
 sync-test-files: ## Sync shared configuration files to test directories.
