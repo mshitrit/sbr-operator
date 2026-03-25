@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -29,6 +30,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	medik8sv1alpha1 "github.com/medik8s/sbd-operator/api/v1alpha1"
@@ -42,8 +46,6 @@ import (
 var _ = Describe("StorageBasedRemediation Controller", func() {
 	Context("When reconciling a StorageBasedRemediation resource", func() {
 		var (
-			reconciler     *SBDRemediationReconciler
-			ctx            context.Context
 			resourceName   string
 			namespacedName types.NamespacedName
 		)
@@ -283,6 +285,87 @@ var _ = Describe("StorageBasedRemediation Controller", func() {
 				Expect(k8sClient.Get(ctx, types.NamespacedName{Name: testNodeName, Namespace: "default"}, finalResource)).To(Succeed())
 				Expect(finalResource.Name).To(Equal(testNodeName))
 				Expect(finalResource.Spec.Reason).To(Equal(medik8sv1alpha1.SBDRemediationReasonNodeUnresponsive))
+			})
+		})
+	})
+
+	Context("handleFencingSuccess", func() {
+		var (
+			sbr           *medik8sv1alpha1.StorageBasedRemediation
+			clientBuilder *fake.ClientBuilder
+		)
+
+		BeforeEach(func() {
+
+			sbr = &medik8sv1alpha1.StorageBasedRemediation{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "worker-2",
+					Namespace: "default",
+				},
+			}
+
+			clientBuilder = fake.NewClientBuilder().
+				WithObjects(sbr).
+				WithStatusSubresource(&medik8sv1alpha1.StorageBasedRemediation{})
+		})
+
+		JustBeforeEach(func() {
+			reconciler = &SBDRemediationReconciler{Client: clientBuilder.Build()}
+		})
+
+		When("status update succeeds", func() {
+			It("should persist fencing success conditions in one status update", func() {
+				err := reconciler.handleFencingSuccess(ctx, sbr, logr.Discard())
+				Expect(err).NotTo(HaveOccurred())
+
+				sbrFound := &medik8sv1alpha1.StorageBasedRemediation{}
+				Expect(reconciler.Client.Get(ctx, client.ObjectKeyFromObject(sbr), sbrFound)).To(Succeed())
+
+				fencingInProgressCondition := sbrFound.GetCondition(medik8sv1alpha1.SBDRemediationConditionFencingInProgress)
+				Expect(fencingInProgressCondition).NotTo(BeNil())
+				Expect(fencingInProgressCondition.Status).To(Equal(metav1.ConditionFalse))
+				Expect(fencingInProgressCondition.Reason).To(Equal(ReasonCompleted))
+				Expect(fencingInProgressCondition.Message).To(Equal("Fencing completed"))
+
+				fencingSucceededCondition := sbrFound.GetCondition(medik8sv1alpha1.SBDRemediationConditionFencingSucceeded)
+				Expect(fencingSucceededCondition).NotTo(BeNil())
+				Expect(fencingSucceededCondition.Status).To(Equal(metav1.ConditionTrue))
+				Expect(fencingSucceededCondition.Reason).To(Equal(ReasonCompleted))
+				Expect(fencingSucceededCondition.Message).To(Equal("Node worker-2 fenced successfully"))
+
+				remediationReadyCondition := sbrFound.GetCondition(medik8sv1alpha1.SBDRemediationConditionReady)
+				Expect(remediationReadyCondition).NotTo(BeNil())
+				Expect(remediationReadyCondition.Status).To(Equal(metav1.ConditionTrue))
+				Expect(remediationReadyCondition.Reason).To(Equal(ReasonCompleted))
+				Expect(remediationReadyCondition.Message).To(Equal("Remediation completed successfully"))
+			})
+		})
+
+		When("status update fails", func() {
+			var statusErr = errors.New("apiserver rejected status")
+			BeforeEach(func() {
+				clientBuilder = clientBuilder.WithInterceptorFuncs(interceptor.Funcs{
+					SubResourceUpdate: func(
+						ctx context.Context,
+						c client.Client,
+						subResourceName string,
+						obj client.Object,
+						opts ...client.SubResourceUpdateOption,
+					) error {
+						if subResourceName == "status" {
+							return statusErr
+						}
+						return c.SubResource(subResourceName).Update(ctx, obj, opts...)
+					},
+				})
+			})
+
+			It("should return a wrapped error", func() {
+				err := reconciler.handleFencingSuccess(ctx, sbr, logr.Discard())
+				Expect(err).To(HaveOccurred())
+				Expect(errors.Is(err, statusErr)).To(BeTrue())
+				Expect(err.Error()).To(ContainSubstring(
+					"failed to update StorageBasedRemediation status after fencing success"))
 			})
 		})
 	})
