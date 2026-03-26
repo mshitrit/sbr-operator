@@ -76,7 +76,7 @@ curl http://<node-ip>:8080/metrics
 
 ### Minimal (Watchdog-Only)
 ```yaml
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: basic-sbd
@@ -86,7 +86,7 @@ spec:
 
 ### Production
 ```yaml
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: production-sbd
@@ -99,7 +99,7 @@ spec:
 
 ### Development
 ```yaml
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: dev-sbd

@@ -40,7 +40,7 @@ For unknown provisioners, the controller creates a temporary PVC with `ReadWrite
 No additional configuration is required. The validation happens automatically when you specify a `sharedStorageClass` in your SBDConfig:
 
 ```yaml
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: sbd-config
@@ -145,7 +145,7 @@ Example migration from EBS to EFS:
 
 ```yaml
 # Before (incompatible)
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: sbd-config
@@ -156,7 +156,7 @@ spec:
 ---
 
 # After (compatible)
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: sbd-config

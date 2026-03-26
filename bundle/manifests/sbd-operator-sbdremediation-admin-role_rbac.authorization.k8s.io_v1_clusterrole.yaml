@@ -8,13 +8,13 @@ metadata:
   name: sbd-operator-sbdremediation-admin-role
 rules:
 - apiGroups:
-  - medik8s.medik8s.io
+  - storage-based-remediation.medik8s.io
   resources:
   - sbdremediations
   verbs:
   - '*'
 - apiGroups:
-  - medik8s.medik8s.io
+  - storage-based-remediation.medik8s.io
   resources:
   - sbdremediations/status
   verbs:

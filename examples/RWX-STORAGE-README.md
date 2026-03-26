@@ -104,7 +104,7 @@ oc logs job/verify-rwx-storage -n sbd-system
 ### Example 1: SBDConfig with Shared Storage
 
 ```yaml
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: sbd-config-with-shared-storage
@@ -313,7 +313,7 @@ The RWX storage can be integrated with the SBD operator for:
 The SBDConfig CRD now supports shared storage through the following fields:
 
 ```yaml
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: sbd-config-with-shared-storage

@@ -89,35 +89,6 @@ rules:
   - update
   - watch
 - apiGroups:
-  - medik8s.medik8s.io
-  resources:
-  - sbdconfigs
-  - storagebasedremediations
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - medik8s.medik8s.io
-  resources:
-  - sbdconfigs/finalizers
-  - storagebasedremediations/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - medik8s.medik8s.io
-  resources:
-  - sbdconfigs/status
-  - storagebasedremediations/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
   - rbac.authorization.k8s.io
   resources:
   - clusterrolebindings
@@ -148,6 +119,35 @@ rules:
   - securitycontextconstraints
   verbs:
   - use
+- apiGroups:
+  - storage-based-remediation.medik8s.io
+  resources:
+  - sbdconfigs
+  - storagebasedremediations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - storage-based-remediation.medik8s.io
+  resources:
+  - sbdconfigs/finalizers
+  - storagebasedremediations/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - storage-based-remediation.medik8s.io
+  resources:
+  - sbdconfigs/status
+  - storagebasedremediations/status
+  verbs:
+  - get
+  - patch
+  - update
 - apiGroups:
   - storage.k8s.io
   resources:

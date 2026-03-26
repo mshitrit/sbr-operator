@@ -22,7 +22,7 @@ data:
 ---
 # SBDConfig with RWX shared storage integration
 # This demonstrates the native shared storage support in SBDConfig CRD
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: sbd-config-with-shared-storage

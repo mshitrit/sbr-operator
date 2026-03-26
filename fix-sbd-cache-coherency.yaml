@@ -29,7 +29,7 @@ reclaimPolicy: Retain
 volumeBindingMode: Immediate
 ---
 # Test SBDConfig using the new StorageClass
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: test-sbd-aggressive-coherency

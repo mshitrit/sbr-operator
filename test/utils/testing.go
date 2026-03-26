@@ -1501,9 +1501,9 @@ func SuiteSetup(prefix string) (*TestNamespace, error) {
 	}
 
 	By("Verifying CRDs are installed")
-	// Check for SBD CRDs by looking for API resources in the medik8s.medik8s.io group
-	apiResourceList, err := testClients.Clientset.Discovery().ServerResourcesForGroupVersion("medik8s.medik8s.io/v1alpha1")
-	Expect(err).NotTo(HaveOccurred(), "Failed to get API resources for medik8s.medik8s.io/v1alpha1")
+	// Check for SBD CRDs by looking for API resources in the storage-based-remediation.medik8s.io group
+	apiResourceList, err := testClients.Clientset.Discovery().ServerResourcesForGroupVersion("storage-based-remediation.medik8s.io/v1alpha1")
+	Expect(err).NotTo(HaveOccurred(), "Failed to get API resources for storage-based-remediation.medik8s.io/v1alpha1")
 
 	var foundSBDConfig, foundSBDRemediation bool
 	for _, resource := range apiResourceList.APIResources {

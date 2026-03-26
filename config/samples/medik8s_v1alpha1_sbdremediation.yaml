@@ -1,4 +1,4 @@
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDRemediation
 metadata:
   labels:

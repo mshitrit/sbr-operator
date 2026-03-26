@@ -37,7 +37,7 @@ rules:
   - get
   - list
 - apiGroups:
-  - medik8s.medik8s.io
+  - storage-based-remediation.medik8s.io
   resources:
   - sbdconfigs
   verbs:
@@ -45,13 +45,13 @@ rules:
   - list
   - watch
 - apiGroups:
-  - medik8s.medik8s.io
+  - storage-based-remediation.medik8s.io
   resources:
   - sbdconfigs/status
   verbs:
   - get
 - apiGroups:
-  - medik8s.medik8s.io
+  - storage-based-remediation.medik8s.io
   resources:
   - storagebasedremediations
   verbs:
@@ -61,7 +61,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - medik8s.medik8s.io
+  - storage-based-remediation.medik8s.io
   resources:
   - storagebasedremediations/status
   verbs:

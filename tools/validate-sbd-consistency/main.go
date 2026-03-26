@@ -222,7 +222,7 @@ func getSBDConfigs(namespace string) ([]string, error) {
 	}
 
 	sbdConfigGVR := schema.GroupVersionResource{
-		Group:    "medik8s.medik8s.io",
+		Group:    "storage-based-remediation.medik8s.io",
 		Version:  "v1alpha1",
 		Resource: "sbdconfigs",
 	}

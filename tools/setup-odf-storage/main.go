@@ -265,7 +265,7 @@ func printResults(result *odf.SetupResult) {
 	fmt.Printf("   Use StorageClass '%s' in your SBDConfig for shared storage.\n", result.StorageClassName)
 	fmt.Println("\n📖 Example SBDConfig configuration:")
 	fmt.Printf(`
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: sbd-with-odf

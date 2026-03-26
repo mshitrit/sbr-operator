@@ -8,7 +8,7 @@ metadata:
   name: sbd-operator-sbdconfig-editor-role
 rules:
 - apiGroups:
-  - medik8s.medik8s.io
+  - storage-based-remediation.medik8s.io
   resources:
   - sbdconfigs
   verbs:
@@ -20,7 +20,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - medik8s.medik8s.io
+  - storage-based-remediation.medik8s.io
   resources:
   - sbdconfigs/status
   verbs:

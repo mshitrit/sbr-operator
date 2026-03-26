@@ -15,7 +15,7 @@ webhooks:
   name: vsbdconfig.kb.io
   rules:
   - apiGroups:
-    - medik8s.medik8s.io
+    - storage-based-remediation.medik8s.io
     apiVersions:
     - v1alpha1
     operations:

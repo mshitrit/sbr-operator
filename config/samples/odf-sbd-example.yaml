@@ -1,7 +1,7 @@
 # Example SBDConfig using OpenShift Data Foundation CephFS storage
 # This example demonstrates how to configure SBD with CephFS storage
 # provisioned by OpenShift Data Foundation for high-availability clustering
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: sbd-with-odf-cephfs
@@ -45,7 +45,7 @@ spec:
 ---
 # Example: Alternative configuration with aggressive cache coherency
 # Use this when strict SBD coordination is required
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: sbd-with-odf-strict
@@ -81,7 +81,7 @@ spec:
 ---
 # Example: Multi-tenant SBD configuration
 # Demonstrates multiple SBD configurations in the same namespace
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: sbd-tenant-a
@@ -105,7 +105,7 @@ spec:
 ---
 # Example: Development/Testing configuration
 # Smaller timeouts and simpler configuration for testing
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: sbd-dev-test

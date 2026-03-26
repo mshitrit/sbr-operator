@@ -943,9 +943,9 @@ echo "SBD devices initialization completed successfully"
 	return controllerutil.OperationResultCreated, nil
 }
 
-// +kubebuilder:rbac:groups=medik8s.medik8s.io,resources=sbdconfigs,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=medik8s.medik8s.io,resources=sbdconfigs/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=medik8s.medik8s.io,resources=sbdconfigs/finalizers,verbs=update
+// +kubebuilder:rbac:groups=storage-based-remediation.medik8s.io,resources=sbdconfigs,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=storage-based-remediation.medik8s.io,resources=sbdconfigs/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=storage-based-remediation.medik8s.io,resources=sbdconfigs/finalizers,verbs=update
 // +kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete

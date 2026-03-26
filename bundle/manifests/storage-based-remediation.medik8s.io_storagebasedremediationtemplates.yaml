@@ -4,9 +4,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
   creationTimestamp: null
-  name: storagebasedremediationtemplates.medik8s.medik8s.io
+  name: storagebasedremediationtemplates.storage-based-remediation.medik8s.io
 spec:
-  group: medik8s.medik8s.io
+  group: storage-based-remediation.medik8s.io
   names:
     kind: StorageBasedRemediationTemplate
     listKind: StorageBasedRemediationTemplateList

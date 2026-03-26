@@ -1,11 +1,11 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: sbdremediations.medik8s.medik8s.io
+  name: sbdremediations.storage-based-remediation.medik8s.io
   annotations:
     api-approved.kubernetes.io: "https://github.com/medik8s/sbd-operator"
 spec:
-  group: medik8s.medik8s.io
+  group: storage-based-remediation.medik8s.io
   versions:
   - name: v1alpha1
     served: true

@@ -4,7 +4,7 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
-    createdAt: "2026-03-03T10:08:17Z"
+    createdAt: ""
     operators.operatorframework.io/builder: operator-sdk-v1.33.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     containerImage: quay.io/medik8s/sbd-operator:latest
@@ -17,15 +17,15 @@ spec:
       - description: SBDConfig is the Schema for the sbdconfigs API.
         displayName: SBDConfig
         kind: SBDConfig
-        name: sbdconfigs.medik8s.medik8s.io
+        name: sbdconfigs.storage-based-remediation.medik8s.io
         version: v1alpha1
       - kind: StorageBasedRemediation
-        name: storagebasedremediations.medik8s.medik8s.io
+        name: storagebasedremediations.storage-based-remediation.medik8s.io
         version: v1alpha1
       - description: StorageBasedRemediationTemplate is the Schema for the storagebasedremediationtemplates API.
         displayName: StorageBasedRemediation Template
         kind: StorageBasedRemediationTemplate
-        name: storagebasedremediationtemplates.medik8s.medik8s.io
+        name: storagebasedremediationtemplates.storage-based-remediation.medik8s.io
         version: v1alpha1
   description: TBD
   displayName: SBD
@@ -133,35 +133,6 @@ spec:
                 - update
                 - watch
             - apiGroups:
-                - medik8s.medik8s.io
-              resources:
-                - sbdconfigs
-                - storagebasedremediations
-              verbs:
-                - create
-                - delete
-                - get
-                - list
-                - patch
-                - update
-                - watch
-            - apiGroups:
-                - medik8s.medik8s.io
-              resources:
-                - sbdconfigs/finalizers
-                - storagebasedremediations/finalizers
-              verbs:
-                - update
-            - apiGroups:
-                - medik8s.medik8s.io
-              resources:
-                - sbdconfigs/status
-                - storagebasedremediations/status
-              verbs:
-                - get
-                - patch
-                - update
-            - apiGroups:
                 - rbac.authorization.k8s.io
               resources:
                 - clusterrolebindings
@@ -192,6 +163,35 @@ spec:
                 - securitycontextconstraints
               verbs:
                 - use
+            - apiGroups:
+                - storage-based-remediation.medik8s.io
+              resources:
+                - sbdconfigs
+                - storagebasedremediations
+              verbs:
+                - create
+                - delete
+                - get
+                - list
+                - patch
+                - update
+                - watch
+            - apiGroups:
+                - storage-based-remediation.medik8s.io
+              resources:
+                - sbdconfigs/finalizers
+                - storagebasedremediations/finalizers
+              verbs:
+                - update
+            - apiGroups:
+                - storage-based-remediation.medik8s.io
+              resources:
+                - sbdconfigs/status
+                - storagebasedremediations/status
+              verbs:
+                - get
+                - patch
+                - update
             - apiGroups:
                 - storage.k8s.io
               resources:

@@ -115,9 +115,9 @@ type SBDRemediationReconciler struct {
 	sequence    uint64 // Changed from uint32 to uint64
 }
 
-// +kubebuilder:rbac:groups=medik8s.medik8s.io,resources=storagebasedremediations,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=medik8s.medik8s.io,resources=storagebasedremediations/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=medik8s.medik8s.io,resources=storagebasedremediations/finalizers,verbs=update
+// +kubebuilder:rbac:groups=storage-based-remediation.medik8s.io,resources=storagebasedremediations,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=storage-based-remediation.medik8s.io,resources=storagebasedremediations/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=storage-based-remediation.medik8s.io,resources=storagebasedremediations/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;list;watch;create;update;patch;delete
 

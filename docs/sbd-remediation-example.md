@@ -20,7 +20,7 @@ When a node becomes unresponsive or requires manual fencing, create an `StorageB
 ## Basic Example
 
 ```yaml
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: StorageBasedRemediation
 metadata:
   name: fence-worker-1

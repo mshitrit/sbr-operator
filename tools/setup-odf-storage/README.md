@@ -155,7 +155,7 @@ The `setup-odf-storage` tool provides:
 Once the tool completes, use the created StorageClass in your SBDConfig:
 
 ```yaml
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: sbd-with-odf

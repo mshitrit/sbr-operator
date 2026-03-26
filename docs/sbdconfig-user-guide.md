@@ -49,7 +49,7 @@ SBDConfig is a cluster-scoped Kubernetes custom resource that configures the SBD
 ### Example: Multiple Configurations
 ```yaml
 # Production configuration
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: production-sbd
@@ -60,7 +60,7 @@ spec:
   staleNodeTimeout: "1h"
 ---
 # Canary configuration for testing
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: canary-sbd
@@ -149,7 +149,7 @@ The controller automatically chooses a sensible mount path (`/sbd-shared`) for s
 For clusters that only need watchdog-based fencing without shared storage:
 
 ```yaml
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: basic-sbd
@@ -164,7 +164,7 @@ spec:
 For production environments with specific requirements:
 
 ```yaml
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: production-sbd
@@ -187,7 +187,7 @@ spec:
 For development or testing environments:
 
 ```yaml
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: dev-sbd
@@ -207,7 +207,7 @@ spec:
 For environments with multiple clusters:
 
 ```yaml
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: cluster-west-sbd
@@ -216,7 +216,7 @@ spec:
   namespace: "sbd-cluster-west"
   staleNodeTimeout: "45m"
 ---
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: cluster-east-sbd
@@ -312,7 +312,7 @@ The SBD operator supports automatic shared storage provisioning using Kubernetes
 
 #### Configuration
 ```yaml
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: shared-storage-example
@@ -348,7 +348,7 @@ spec:
 For environments with specific storage requirements:
 
 ```yaml
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   name: custom-storage-sbd
@@ -614,7 +614,7 @@ groups:
 
 For complete API documentation, see:
 - [SBDConfig API Types](../api/v1alpha1/sbdconfig_types.go)
-- [Generated CRD](../config/crd/bases/medik8s.medik8s.io_sbdconfigs.yaml)
+- [Generated CRD](../config/crd/bases/storage-based-remediation.medik8s.io_sbdconfigs.yaml)
 - [Sample Configurations](../config/samples/)
 
 ## Related Documentation

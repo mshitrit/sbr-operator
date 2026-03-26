@@ -6,7 +6,7 @@
 #
 # For comprehensive documentation, see: docs/sbdconfig-user-guide.md
 
-apiVersion: medik8s.medik8s.io/v1alpha1
+apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: SBDConfig
 metadata:
   labels:

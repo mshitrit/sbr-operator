@@ -35,6 +35,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
 	// Kubernetes imports for StorageBasedRemediation CR watching
 
 	corev1 "k8s.io/api/core/v1"
@@ -62,10 +63,10 @@ import (
 
 // RBAC permissions for SBD Agent
 // The agent reads SBDConfig, sets SBRStorageUnhealthy node condition for unhealthy peers, and reconciles StorageBasedRemediation CRs (created by NHC) for fencing.
-// +kubebuilder:rbac:groups=medik8s.medik8s.io,resources=sbdconfigs,verbs=get;list;watch
-// +kubebuilder:rbac:groups=medik8s.medik8s.io,resources=sbdconfigs/status,verbs=get
-// +kubebuilder:rbac:groups=medik8s.medik8s.io,resources=storagebasedremediations,verbs=get;list;watch;update;patch
-// +kubebuilder:rbac:groups=medik8s.medik8s.io,resources=storagebasedremediations/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=storage-based-remediation.medik8s.io,resources=sbdconfigs,verbs=get;list;watch
+// +kubebuilder:rbac:groups=storage-based-remediation.medik8s.io,resources=sbdconfigs/status,verbs=get
+// +kubebuilder:rbac:groups=storage-based-remediation.medik8s.io,resources=storagebasedremediations,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=storage-based-remediation.medik8s.io,resources=storagebasedremediations/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch;update;patch

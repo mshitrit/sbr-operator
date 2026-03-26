@@ -13,18 +13,18 @@ spec:
     - description: SBDConfig is the Schema for the sbdconfigs API.
       displayName: SBDConfig
       kind: SBDConfig
-      name: sbdconfigs.medik8s.medik8s.io
+      name: sbdconfigs.storage-based-remediation.medik8s.io
       version: v1alpha1
     - description: SBDRemediation is the Schema for the sbdremediations API.
       displayName: SBDRemediation
       kind: SBDRemediation
-      name: sbdremediations.medik8s.medik8s.io
+      name: sbdremediations.storage-based-remediation.medik8s.io
       version: v1alpha1
     - description: StorageBasedRemediationTemplate is the Schema for the storagebasedremediationtemplates
         API.
       displayName: StorageBasedRemediation Template
       kind: StorageBasedRemediationTemplate
-      name: storagebasedremediationtemplates.medik8s.medik8s.io
+      name: storagebasedremediationtemplates.storage-based-remediation.medik8s.io
       version: v1alpha1
   description: TBD
   displayName: SBD
