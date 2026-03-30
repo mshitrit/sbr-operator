@@ -554,9 +554,8 @@ func (r *SBDRemediationReconciler) emitEventOnly(remediation *medik8sv1alpha1.St
 }
 
 // handleFencingFailure records fencing failure on the remediation (FencingInProgress and Ready)
-// in a single status update. Reconcile always returns the original executeFencing error so
-// operators see the root cause; if the status write fails, we log and emit a
-// ConditionUpdateFailed event but do not replace that error.
+// in a single status update.
+// This method does not need to return an error because the Reconcile loop will always return only the original root cause.
 func (r *SBDRemediationReconciler) handleFencingFailure(
 	ctx context.Context, remediation *medik8sv1alpha1.StorageBasedRemediation, err error, logger logr.Logger) {
 	nodeName := remediation.Name

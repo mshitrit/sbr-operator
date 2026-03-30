@@ -25,7 +25,6 @@ import (
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -321,22 +320,14 @@ var _ = Describe("StorageBasedRemediation Controller", func() {
 					Expect(reconciler.Client.Get(ctx, client.ObjectKeyFromObject(sbr), sbrFound)).To(Succeed())
 
 					fencingInProgressCondition := sbrFound.GetCondition(medik8sv1alpha1.SBDRemediationConditionFencingInProgress)
-					Expect(fencingInProgressCondition).NotTo(BeNil())
-					Expect(fencingInProgressCondition.Status).To(Equal(metav1.ConditionFalse))
-					Expect(fencingInProgressCondition.Reason).To(Equal(ReasonCompleted))
-					Expect(fencingInProgressCondition.Message).To(Equal("Fencing completed"))
+					verifyCondition(fencingInProgressCondition, metav1.ConditionFalse, ReasonCompleted, "Fencing completed")
 
 					fencingSucceededCondition := sbrFound.GetCondition(medik8sv1alpha1.SBDRemediationConditionFencingSucceeded)
-					Expect(fencingSucceededCondition).NotTo(BeNil())
-					Expect(fencingSucceededCondition.Status).To(Equal(metav1.ConditionTrue))
-					Expect(fencingSucceededCondition.Reason).To(Equal(ReasonCompleted))
-					Expect(fencingSucceededCondition.Message).To(Equal("Node worker-2 fenced successfully"))
+					verifyCondition(fencingSucceededCondition, metav1.ConditionTrue, ReasonCompleted, "Node worker-2 fenced successfully")
 
 					remediationReadyCondition := sbrFound.GetCondition(medik8sv1alpha1.SBDRemediationConditionReady)
-					Expect(remediationReadyCondition).NotTo(BeNil())
-					Expect(remediationReadyCondition.Status).To(Equal(metav1.ConditionTrue))
-					Expect(remediationReadyCondition.Reason).To(Equal(ReasonCompleted))
-					Expect(remediationReadyCondition.Message).To(Equal("Remediation completed successfully"))
+					verifyCondition(remediationReadyCondition, metav1.ConditionTrue, ReasonCompleted, "Remediation completed successfully")
+
 				})
 			})
 
@@ -388,12 +379,8 @@ var _ = Describe("StorageBasedRemediation Controller", func() {
 
 					sbrFound := &medik8sv1alpha1.StorageBasedRemediation{}
 					Expect(reconciler.Client.Get(ctx, client.ObjectKeyFromObject(sbr), sbrFound)).To(Succeed())
-
-					fip := sbrFound.GetCondition(medik8sv1alpha1.SBDRemediationConditionFencingInProgress)
-					Expect(fip).To(BeNil())
-
-					rdy := sbrFound.GetCondition(medik8sv1alpha1.SBDRemediationConditionReady)
-					Expect(rdy).To(BeNil())
+					Expect(sbrFound.GetCondition(medik8sv1alpha1.SBDRemediationConditionFencingInProgress)).To(BeNil())
+					Expect(sbrFound.GetCondition(medik8sv1alpha1.SBDRemediationConditionReady)).To(BeNil())
 				})
 			})
 		})
@@ -432,6 +419,13 @@ var _ = Describe("StorageBasedRemediation Controller", func() {
 		})
 	})
 })
+
+func verifyCondition(conditionType *metav1.Condition, conditionStatus metav1.ConditionStatus, conditionReason, conditionMessage string) {
+	Expect(conditionType).NotTo(BeNil())
+	Expect(conditionType.Status).To(Equal(conditionStatus))
+	Expect(conditionType.Reason).To(Equal(conditionReason))
+	Expect(conditionType.Message).To(Equal(conditionMessage))
+}
 
 func interceptorStatusSubresourceUpdateOrDelegate() interceptor.Funcs {
 	return interceptor.Funcs{
