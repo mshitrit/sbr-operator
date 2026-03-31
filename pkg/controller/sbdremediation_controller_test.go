@@ -356,16 +356,10 @@ var _ = Describe("StorageBasedRemediation Controller", func() {
 					Expect(reconciler.Client.Get(ctx, client.ObjectKeyFromObject(sbr), sbrFound)).To(Succeed())
 
 					fip := sbrFound.GetCondition(medik8sv1alpha1.SBDRemediationConditionFencingInProgress)
-					Expect(fip).NotTo(BeNil())
-					Expect(fip.Status).To(Equal(metav1.ConditionFalse))
-					Expect(fip.Reason).To(Equal(ReasonFailed))
-					Expect(fip.Message).To(Equal(fenceErr.Error()))
+					verifyCondition(fip, metav1.ConditionFalse, ReasonFailed, fenceErr.Error())
 
 					rdy := sbrFound.GetCondition(medik8sv1alpha1.SBDRemediationConditionReady)
-					Expect(rdy).NotTo(BeNil())
-					Expect(rdy.Status).To(Equal(metav1.ConditionFalse))
-					Expect(rdy.Reason).To(Equal(ReasonFailed))
-					Expect(rdy.Message).To(Equal(fenceErr.Error()))
+					verifyCondition(rdy, metav1.ConditionFalse, ReasonFailed, fenceErr.Error())
 				})
 			})
 
