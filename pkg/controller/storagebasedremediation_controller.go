@@ -55,8 +55,7 @@ const (
 	// SBRAgentOOSTaintTimestampAnnotation records when OOS taint was placed on the node for this remediation
 	SBRAgentOOSTaintTimestampAnnotation = "medik8s.io/sbr-oos-placed-at"
 
-	// Fresh window and requeue delay for SBR agent remediations before placing OOS taint
-	SBRAgentRemediationFreshAge     = 15 * time.Second * (5 + 2) //TODO mshitrit should work around dependecies to update the calculation to be: main.SBRDefaultTimeoutSec/2 * (main.MaxConsecutiveFailures+2)  if SBR_TIMEOUT_SECONDS defined, use instead of main.SBRDefaultTimeoutSec
+	// SBRAgentRemediationRequeueDelay is the requeue delay for SBR agent remediations before placing OOS taint.
 	SBRAgentRemediationRequeueDelay = 10 * time.Second
 
 	// Status update retry configuration
@@ -287,10 +286,16 @@ func (r *SBRRemediationReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
 		// For fresh SBR-agent remediations, delay placing the OOS taint
-		if isSBRAgentRemediation(&sbrRemediation) && isRemediationFresh(&sbrRemediation, time.Now()) {
+		freshOOSDelay, err := r.agentRemediationFreshOOSDelay(ctx, sbrRemediation.Namespace)
+		if err != nil {
+			logger.Error(err, "Failed to list StorageBasedRemediationConfig for agent remediation fresh window")
+			return ctrl.Result{}, err
+		}
+		if isSBRAgentRemediation(&sbrRemediation) && isRemediationFresh(&sbrRemediation, time.Now(), freshOOSDelay) {
 			logger.V(1).Info("Fresh SBR-agent remediation detected; delaying OutOfService taint",
 				"age", time.Since(sbrRemediation.CreationTimestamp.Time),
-				"requeueAfter", SBRAgentRemediationRequeueDelay)
+				"requeueAfter", SBRAgentRemediationRequeueDelay,
+				"freshOOSDelay", freshOOSDelay)
 			return ctrl.Result{RequeueAfter: SBRAgentRemediationRequeueDelay}, nil
 		}
 
@@ -675,11 +680,25 @@ func isSBRAgentRemediation(rem *medik8sv1alpha1.StorageBasedRemediation) bool {
 	return ok
 }
 
-func isRemediationFresh(rem *medik8sv1alpha1.StorageBasedRemediation, now time.Time) bool {
+func isRemediationFresh(rem *medik8sv1alpha1.StorageBasedRemediation, now time.Time, freshWindow time.Duration) bool {
 	if rem.CreationTimestamp.IsZero() {
 		return false
 	}
-	return now.Sub(rem.CreationTimestamp.Time) < SBRAgentRemediationFreshAge
+	return now.Sub(rem.CreationTimestamp.Time) < freshWindow
+}
+
+// agentRemediationFreshOOSDelay returns how long to treat agent-annotated remediations as fresh before OOS taint,
+// from StorageBasedRemediationConfig in the same namespace (first item), or API defaults if none exist.
+func (r *SBRRemediationReconciler) agentRemediationFreshOOSDelay(ctx context.Context, namespace string) (time.Duration, error) {
+	var list medik8sv1alpha1.StorageBasedRemediationConfigList
+	if err := r.List(ctx, &list, client.InNamespace(namespace)); err != nil {
+		return 0, err
+	}
+	var spec medik8sv1alpha1.StorageBasedRemediationConfigSpec
+	if len(list.Items) > 0 {
+		spec = list.Items[0].Spec
+	}
+	return medik8sv1alpha1.RemediationAgentFreshOOSDelay(spec.GetSBRTimeoutSeconds(), spec.GetMaxConsecutiveFailures()), nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

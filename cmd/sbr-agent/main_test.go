@@ -500,7 +500,7 @@ func TestSBRAgent_PeerMonitorLoop_Integration(t *testing.T) {
 
 	// Wait for peers to become unhealthy (1 second timeout + check interval)
 	heartbeatInterval := time.Duration(agent.peerMonitor.sbrTimeoutSeconds) / 2 * time.Second
-	timeout := heartbeatInterval * MaxConsecutiveFailures
+	timeout := heartbeatInterval * time.Duration(MaxConsecutiveFailures)
 	time.Sleep(timeout + time.Second)
 
 	// Should now have 0 healthy peers

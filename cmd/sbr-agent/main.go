@@ -89,9 +89,11 @@ var (
 		"SBR timeout in seconds (determines heartbeat interval)")
 	sbrUpdateInterval = flag.Duration(agent.FlagSBRUpdateInterval, 5*time.Second,
 		"Interval for updating SBR device with node status")
-	peerCheckInterval = flag.Duration(agent.FlagPeerCheckInterval, 5*time.Second, "Interval for checking peer heartbeats")
-	logLevel          = flag.String(agent.FlagLogLevel, agent.DefaultLogLevel, "Log level (debug, info, warn, error)")
-	rebootMethod      = flag.String(agent.FlagRebootMethod, agent.DefaultRebootMethod,
+	peerCheckInterval          = flag.Duration(agent.FlagPeerCheckInterval, 5*time.Second, "Interval for checking peer heartbeats")
+	maxConsecutiveFailuresFlag = flag.Int(agent.FlagMaxConsecutiveFailures, agent.DefaultMaxConsecutiveFailures,
+		"Max consecutive SBR/watchdog failures before self-fence (peer unhealthy uses max-1 missed heartbeats)")
+	logLevel     = flag.String(agent.FlagLogLevel, agent.DefaultLogLevel, "Log level (debug, info, warn, error)")
+	rebootMethod = flag.String(agent.FlagRebootMethod, agent.DefaultRebootMethod,
 		"Method to use for self-fencing (panic, systemctl-reboot, none)")
 	metricsPort = flag.Int(agent.FlagMetricsPort, agent.DefaultMetricsPort,
 		"Port for Prometheus metrics endpoint")
@@ -126,8 +128,6 @@ const (
 	// CriticalRetryBackoffFactor is the exponential backoff factor for critical operation retries
 	CriticalRetryBackoffFactor = 2.0
 
-	// MaxConsecutiveFailures is the maximum number of consecutive failures before triggering self-fence
-	MaxConsecutiveFailures = 7
 	// FailureCountResetInterval is the interval after which failure counts are reset
 	FailureCountResetInterval = 10 * time.Minute
 	// SBRDefaultTimeoutSec used to calculate the heartbeat, would use SBR_TIMEOUT_SECONDS var if exist
@@ -138,10 +138,6 @@ const (
 	FileLockTimeout = 5 * time.Second
 	// FileLockRetryInterval is the interval between file lock acquisition attempts
 	FileLockRetryInterval = 100 * time.Millisecond
-
-	// DefaultMinMissedHeartbeatsForRemediation gates when peers create a remediation.
-	// Default equals MaxConsecutiveFailures.
-	DefaultMinMissedHeartbeatsForRemediation = MaxConsecutiveFailures - 1
 
 	// SBRAgentRemediationGraceAnnotationKey is written on the Node right before deleting
 	// an SBR-agent remediation to provide a grace period for sbr-agent to start running on the node and report health, before re-creating a new remediation.
@@ -160,6 +156,13 @@ const (
 // we wait long enough for the unhealthy node to self-fence (e.g. after MaxConsecutiveFailures missed heartbeats),
 // plus one heartbeat buffer, plus time for the remediation CR API check.
 var sbrUnhealthyConditionStaleAge time.Duration
+
+var (
+	// MaxConsecutiveFailures defaults to agent; main overwrites after flag.Parse from CLI/operator.
+	MaxConsecutiveFailures = agent.DefaultMaxConsecutiveFailures
+	// DefaultMinMissedHeartbeatsForRemediation gates when peers create a remediation (MaxConsecutiveFailures-1).
+	DefaultMinMissedHeartbeatsForRemediation = MaxConsecutiveFailures - 1
+)
 
 // Global logger instance
 var logger logr.Logger
@@ -379,7 +382,7 @@ func (pm *peerMonitor) checkPeerLiveness() {
 
 	now := time.Now()
 	heartbeatInterval := time.Duration(pm.sbrTimeoutSeconds) / 2 * time.Second
-	timeout := heartbeatInterval * MaxConsecutiveFailures
+	timeout := heartbeatInterval * time.Duration(MaxConsecutiveFailures)
 
 	for peerNodeID, peer := range pm.peers {
 		timeSinceLastSeen := now.Sub(peer.LastSeen)
@@ -2246,6 +2249,12 @@ func (s *SBRAgent) addSBRRemediationController() error {
 
 func main() {
 	flag.Parse()
+	MaxConsecutiveFailures = *maxConsecutiveFailuresFlag
+	if MaxConsecutiveFailures < 3 || MaxConsecutiveFailures > 32 {
+		fmt.Fprintf(os.Stderr, "max-consecutive-failures must be between 3 and 32, got %d\n", MaxConsecutiveFailures)
+		os.Exit(1)
+	}
+	DefaultMinMissedHeartbeatsForRemediation = MaxConsecutiveFailures - 1
 
 	// Initialize structured logger first
 	if err := initializeLogger(*logLevel); err != nil {

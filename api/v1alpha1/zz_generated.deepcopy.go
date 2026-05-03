@@ -146,6 +146,11 @@ func (in *StorageBasedRemediationConfigSpec) DeepCopyInto(out *StorageBasedRemed
 		*out = new(int32)
 		**out = **in
 	}
+	if in.MaxConsecutiveFailures != nil {
+		in, out := &in.MaxConsecutiveFailures, &out.MaxConsecutiveFailures
+		*out = new(int32)
+		**out = **in
+	}
 	if in.SBRUpdateInterval != nil {
 		in, out := &in.SBRUpdateInterval, &out.SBRUpdateInterval
 		*out = new(v1.Duration)

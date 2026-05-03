@@ -258,6 +258,9 @@ var _ = Describe("StorageBasedRemediationConfig Controller", func() {
 			By("verifying file locking is enabled for shared storage")
 			expectedFileLocking := fmt.Sprintf("--%s=true", agent.FlagSBRFileLocking)
 			Expect(args).To(ContainElement(expectedFileLocking))
+
+			expectedMaxFailures := fmt.Sprintf("--%s=%d", agent.FlagMaxConsecutiveFailures, medik8sv1alpha1.DefaultMaxConsecutiveFailures)
+			Expect(args).To(ContainElement(expectedMaxFailures))
 		})
 
 		It("should successfully reconcile after resource deletion", func() {

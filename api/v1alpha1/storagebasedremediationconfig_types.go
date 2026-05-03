@@ -82,6 +82,8 @@ const (
 	MinPeerCheckInterval = 1 * time.Second
 	// MaxPeerCheckInterval is the maximum allowed peer check interval
 	MaxPeerCheckInterval = 60 * time.Second
+	// DefaultMaxConsecutiveFailures is the runtime default when maxConsecutiveFailures is unset on the CR (no OpenAPI default).
+	DefaultMaxConsecutiveFailures = 7
 	// RelatedImageSbrAgent when this env is set it contains the image of SBR agent
 	RelatedImageSbrAgent = "RELATED_IMAGE_SBR_AGENT"
 )
@@ -214,6 +216,13 @@ type StorageBasedRemediationConfigSpec struct {
 	// +optional
 	SBRTimeoutSeconds *int32 `json:"sbrTimeoutSeconds,omitempty"`
 
+	// MaxConsecutiveFailures caps consecutive SBR/watchdog/heartbeat failures before self-fence and scales peer timing.
+	// If omitted, GetMaxConsecutiveFailures uses DefaultMaxConsecutiveFailures at runtime.
+	// +kubebuilder:validation:Minimum=3
+	// +kubebuilder:validation:Maximum=32
+	// +optional
+	MaxConsecutiveFailures *int32 `json:"maxConsecutiveFailures,omitempty"`
+
 	// SBRUpdateInterval defines the interval for updating the SBR device with node status information.
 	// This determines how frequently each node writes its status to the shared SBR device.
 	// More frequent updates provide faster failure detection but increase I/O load on the shared storage.
@@ -343,6 +352,36 @@ func (s *StorageBasedRemediationConfigSpec) GetSBRTimeoutSeconds() int32 {
 		return *s.SBRTimeoutSeconds
 	}
 	return DefaultSBRTimeoutSeconds
+}
+
+// GetMaxConsecutiveFailures returns max consecutive failures when unset uses DefaultMaxConsecutiveFailures.
+func (s *StorageBasedRemediationConfigSpec) GetMaxConsecutiveFailures() int32 {
+	if s.MaxConsecutiveFailures != nil {
+		return *s.MaxConsecutiveFailures
+	}
+	return int32(DefaultMaxConsecutiveFailures)
+}
+
+// GetMinMissedHeartbeatsForRemediation returns maxConsecutiveFailures-1 for the agent peer gate.
+func (s *StorageBasedRemediationConfigSpec) GetMinMissedHeartbeatsForRemediation() int32 {
+	m := s.GetMaxConsecutiveFailures()
+	if m <= 1 {
+		return 0
+	}
+	return m - 1
+}
+
+// RemediationAgentFreshOOSDelay is how long agent-annotated remediations stay fresh before OutOfService taint timing.
+// Matches historic behavior: (sbrTimeoutSeconds/2) * maxConsecutiveFailures.
+func RemediationAgentFreshOOSDelay(sbrTimeoutSeconds, maxConsecutiveFailures int32) time.Duration {
+	if sbrTimeoutSeconds < 2 {
+		sbrTimeoutSeconds = 2
+	}
+	if maxConsecutiveFailures < 1 {
+		maxConsecutiveFailures = 1
+	}
+	heartbeat := time.Duration(sbrTimeoutSeconds/2) * time.Second
+	return heartbeat * time.Duration(maxConsecutiveFailures)
 }
 
 // GetSBRUpdateInterval returns the SBR update interval with default fallback

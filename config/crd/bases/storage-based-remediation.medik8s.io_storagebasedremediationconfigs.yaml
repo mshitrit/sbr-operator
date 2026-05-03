@@ -86,6 +86,14 @@ spec:
                 - warn
                 - error
                 type: string
+              maxConsecutiveFailures:
+                description: |-
+                  MaxConsecutiveFailures caps consecutive SBR/watchdog/heartbeat failures before self-fence and scales peer timing.
+                  If omitted, GetMaxConsecutiveFailures uses DefaultMaxConsecutiveFailures at runtime.
+                format: int32
+                maximum: 32
+                minimum: 3
+                type: integer
               nodeSelector:
                 additionalProperties:
                   type: string

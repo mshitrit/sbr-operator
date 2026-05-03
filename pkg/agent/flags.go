@@ -54,6 +54,9 @@ const (
 	// FlagPeerCheckInterval specifies the interval for checking peer heartbeats
 	FlagPeerCheckInterval = "peer-check-interval"
 
+	// FlagMaxConsecutiveFailures caps consecutive failures before self-fence and peer timing.
+	FlagMaxConsecutiveFailures = "max-consecutive-failures"
+
 	// FlagLogLevel specifies the log level (debug, info, warn, error)
 	FlagLogLevel = "log-level"
 
@@ -105,6 +108,9 @@ const (
 
 	// DefaultPeerCheckInterval is the default peer check interval
 	DefaultPeerCheckInterval = "5s"
+
+	// DefaultMaxConsecutiveFailures is the default max consecutive failures when the flag is omitted.
+	DefaultMaxConsecutiveFailures = 7
 
 	// DefaultLogLevel is the default log level
 	DefaultLogLevel = "info"

@@ -1565,6 +1565,7 @@ func (r *StorageBasedRemediationConfigReconciler) buildSBRAgentArgs(sbrConfig *m
 	ioTimeout := sbrConfig.Spec.GetIOTimeout()
 	rebootMethod := sbrConfig.Spec.GetRebootMethod()
 	sbrTimeoutSeconds := sbrConfig.Spec.GetSBRTimeoutSeconds()
+	maxConsecutiveFailures := sbrConfig.Spec.GetMaxConsecutiveFailures()
 	sbrUpdateInterval := sbrConfig.Spec.GetSBRUpdateInterval()
 	peerCheckInterval := sbrConfig.Spec.GetPeerCheckInterval()
 
@@ -1579,6 +1580,7 @@ func (r *StorageBasedRemediationConfigReconciler) buildSBRAgentArgs(sbrConfig *m
 		fmt.Sprintf("--io-timeout=%s", ioTimeout.String()),
 		fmt.Sprintf("--%s=%s", agent.FlagRebootMethod, rebootMethod),
 		fmt.Sprintf("--%s=%d", agent.FlagSBRTimeoutSeconds, sbrTimeoutSeconds),
+		fmt.Sprintf("--%s=%d", agent.FlagMaxConsecutiveFailures, maxConsecutiveFailures),
 		fmt.Sprintf("--%s=%s", agent.FlagSBRUpdateInterval, sbrUpdateInterval.String()),
 		fmt.Sprintf("--%s=%s", agent.FlagPeerCheckInterval, peerCheckInterval.String()),
 	}
