@@ -28,8 +28,9 @@ metadata:
 spec:
   nodeName: "worker-1"
   reason: HeartbeatTimeout
-  timeoutSeconds: 60
 ```
+
+Fencing completion is monitored for a fixed duration (60 seconds, matching the former omitted `timeoutSeconds` default) in the operator (`DefaultFencingMonitorTimeoutSeconds` in `pkg/controller/storagebasedremediation_controller.go`), not per-CR.
 
 ## Configuration Fields
 
@@ -40,7 +41,6 @@ spec:
   - `HeartbeatTimeout`: Node stopped sending heartbeats
   - `NodeUnresponsive`: Node is unresponsive to health checks
   - `ManualFencing`: Operator-initiated manual fencing
-- **timeoutSeconds** (optional): Maximum time to wait before considering fencing failed (30-300 seconds, default: 60)
 
 ### Status Fields
 

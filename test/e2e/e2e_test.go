@@ -704,8 +704,7 @@ func testStorageAccessInterruption(cluster ClusterInfo) {
 			Namespace: testNamespace.Name,
 		},
 		Spec: medik8sv1alpha1.StorageBasedRemediationSpec{
-			Reason:         medik8sv1alpha1.SBRRemediationReasonHeartbeatTimeout,
-			TimeoutSeconds: 300,
+			Reason: medik8sv1alpha1.SBRRemediationReasonHeartbeatTimeout,
 		},
 	}
 	err = k8sClient.Create(ctx, sbrRemediation)
@@ -812,8 +811,7 @@ func testKubeletCommunicationFailure(cluster ClusterInfo) {
 			Namespace: testNamespace.Name,
 		},
 		Spec: medik8sv1alpha1.StorageBasedRemediationSpec{
-			Reason:         medik8sv1alpha1.SBRRemediationReasonHeartbeatTimeout,
-			TimeoutSeconds: 300, // 5 minutes timeout for fencing
+			Reason: medik8sv1alpha1.SBRRemediationReasonHeartbeatTimeout,
 		},
 	}
 	err = k8sClient.Create(ctx, sbrRemediation)
@@ -872,8 +870,7 @@ func testFakeRemediation() {
 			Namespace: testNamespace.Name,
 		},
 		Spec: medik8sv1alpha1.StorageBasedRemediationSpec{
-			Reason:         medik8sv1alpha1.SBRRemediationReasonHeartbeatTimeout,
-			TimeoutSeconds: 300, // 5 minutes timeout for fencing
+			Reason: medik8sv1alpha1.SBRRemediationReasonHeartbeatTimeout,
 		},
 	}
 	err := k8sClient.Create(ctx, sbrRemediation)
@@ -915,8 +912,7 @@ func testNodeRemediation(cluster ClusterInfo) {
 			Namespace: testNamespace.Name,
 		},
 		Spec: medik8sv1alpha1.StorageBasedRemediationSpec{
-			Reason:         medik8sv1alpha1.SBRRemediationReasonHeartbeatTimeout,
-			TimeoutSeconds: 300, // 5 minutes timeout for fencing
+			Reason: medik8sv1alpha1.SBRRemediationReasonHeartbeatTimeout,
 		},
 	}
 	err := k8sClient.Create(ctx, sbrRemediation)

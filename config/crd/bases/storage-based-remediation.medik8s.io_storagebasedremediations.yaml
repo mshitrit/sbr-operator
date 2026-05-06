@@ -65,14 +65,6 @@ spec:
                 - NodeUnresponsive
                 - ManualFencing
                 type: string
-              timeoutSeconds:
-                default: 60
-                description: TimeoutSeconds specifies how long to wait before considering
-                  the fencing failed
-                format: int32
-                maximum: 300
-                minimum: 30
-                type: integer
             type: object
           status:
             description: StorageBasedRemediationStatus defines the observed state

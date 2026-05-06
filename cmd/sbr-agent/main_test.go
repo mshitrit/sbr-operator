@@ -1551,8 +1551,7 @@ var _ = Describe("Fence flow with real SBR agent", func() {
 			sbr := &medik8sv1alpha1.StorageBasedRemediation{
 				ObjectMeta: metav1.ObjectMeta{Name: fenceFlowTargetNode, Namespace: "default"},
 				Spec: medik8sv1alpha1.StorageBasedRemediationSpec{
-					Reason:         medik8sv1alpha1.SBRRemediationReasonHeartbeatTimeout,
-					TimeoutSeconds: 300,
+					Reason: medik8sv1alpha1.SBRRemediationReasonHeartbeatTimeout,
 				},
 			}
 			Expect(k8sClient.Create(ctx, sbr)).To(Succeed())
@@ -1746,8 +1745,7 @@ var _ = Describe("Fence flow with real SBR agent", func() {
 				sbr := &medik8sv1alpha1.StorageBasedRemediation{
 					ObjectMeta: metav1.ObjectMeta{Name: "worker-1", Namespace: controllerNamespace},
 					Spec: medik8sv1alpha1.StorageBasedRemediationSpec{
-						Reason:         medik8sv1alpha1.SBRRemediationReasonHeartbeatTimeout,
-						TimeoutSeconds: 300,
+						Reason: medik8sv1alpha1.SBRRemediationReasonHeartbeatTimeout,
 					},
 				}
 				Expect(k8sClient.Create(ctx, sbr)).To(Succeed())

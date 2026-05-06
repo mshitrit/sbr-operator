@@ -17,8 +17,7 @@ metadata:
           },
           "spec": {
             "nodeName": "worker-1",
-            "reason": "HeartbeatTimeout",
-            "timeoutSeconds": 120
+            "reason": "HeartbeatTimeout"
           }
         },
         {

@@ -78,6 +78,11 @@ const (
 	ReasonFinalizerProcessed    = "FinalizerProcessed"
 	ReasonConditionUpdateFailed = "ConditionUpdateFailed"
 	ReasonOOSTaintRemoved       = "OOSTaintRemoved"
+
+	// DefaultFencingMonitorTimeoutSeconds is how long the operator monitors for observable fencing
+	// completion (node NotReady / SBR heartbeat checks) after writing a fence message.
+	// Matches the former StorageBasedRemediation spec when timeoutSeconds was omitted or zero (default 60).
+	DefaultFencingMonitorTimeoutSeconds int32 = 60
 )
 
 // outOfServiceTaint is used to evict workloads from the remediated node after successful fencing
@@ -218,7 +223,7 @@ func (r *SBRRemediationReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		"sbrremediation.generation", sbrRemediation.Generation,
 		"sbrremediation.resourceVersion", sbrRemediation.ResourceVersion,
 		"nodeName", nodeName,
-		"spec.timeoutSeconds", sbrRemediation.Spec.TimeoutSeconds,
+		"fencingMonitorTimeoutSeconds", DefaultFencingMonitorTimeoutSeconds,
 		"status.ready", sbrRemediation.IsReady(),
 		"status.fencingSucceeded", sbrRemediation.IsFencingSucceeded(),
 	)
@@ -364,7 +369,7 @@ func (r *SBRRemediationReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	// Fence message written successfully, now monitor for actual fencing completion
 	logger.Info("Fence message written, monitoring for target node fencing completion",
 		"targetNode", nodeName,
-		"timeoutSeconds", sbrRemediation.Spec.TimeoutSeconds)
+		"timeoutSeconds", DefaultFencingMonitorTimeoutSeconds)
 
 	return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 }
@@ -710,10 +715,7 @@ func (r *SBRRemediationReconciler) SetupWithManager(mgr ctrl.Manager, suffix str
 func (r *SBRRemediationReconciler) checkFencingCompletion(
 	ctx context.Context, remediation *medik8sv1alpha1.StorageBasedRemediation, logger logr.Logger) bool {
 	targetNodeName := remediation.Name
-	timeoutSeconds := remediation.Spec.TimeoutSeconds
-	if timeoutSeconds == 0 {
-		timeoutSeconds = 60 // Default timeout if not specified
-	}
+	timeoutSeconds := DefaultFencingMonitorTimeoutSeconds
 
 	// Check when fencing was initiated to enforce timeout
 	fencingStartTime := r.getFencingStartTime(remediation)

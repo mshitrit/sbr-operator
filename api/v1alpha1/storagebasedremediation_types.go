@@ -58,12 +58,6 @@ type StorageBasedRemediationSpec struct {
 	// +kubebuilder:validation:Enum=HeartbeatTimeout;NodeUnresponsive;ManualFencing
 	// +kubebuilder:default=NodeUnresponsive
 	Reason SBRRemediationReason `json:"reason,omitempty"`
-
-	// TimeoutSeconds specifies how long to wait before considering the fencing failed
-	// +kubebuilder:validation:Minimum=30
-	// +kubebuilder:validation:Maximum=300
-	// +kubebuilder:default=60
-	TimeoutSeconds int32 `json:"timeoutSeconds,omitempty"`
 }
 
 // StorageBasedRemediationStatus defines the observed state of StorageBasedRemediation.
