@@ -23,12 +23,12 @@ When a node becomes unresponsive or requires manual fencing, create an `StorageB
 apiVersion: storage-based-remediation.medik8s.io/v1alpha1
 kind: StorageBasedRemediation
 metadata:
-  name: fence-worker-1
+  name: worker-1
   namespace: default
-spec:
-  nodeName: "worker-1"
-  reason: HeartbeatTimeout
+spec: {}
 ```
+
+The **node to fence** is **`metadata.name`** (it must match the Kubernetes node name). **`spec`** is empty; there is no per-CR `reason` or `timeoutSeconds`.
 
 Fencing completion is monitored for a fixed duration (60 seconds, matching the former omitted `timeoutSeconds` default) in the operator (`DefaultFencingMonitorTimeoutSeconds` in `pkg/controller/storagebasedremediation_controller.go`), not per-CR.
 
@@ -36,11 +36,13 @@ Fencing completion is monitored for a fixed duration (60 seconds, matching the f
 
 ### Spec Fields
 
-- **nodeName** (required): The name of the Kubernetes node to fence
-- **reason** (optional): Why the node needs fencing
-  - `HeartbeatTimeout`: Node stopped sending heartbeats
-  - `NodeUnresponsive`: Node is unresponsive to health checks
-  - `ManualFencing`: Operator-initiated manual fencing
+- **`spec`** is intentionally empty for `StorageBasedRemediation`.
+
+### NHC, node conditions, and fencing
+
+- SBR agents may set the Node condition **`SBRStorageUnhealthy`** (with status, reason, and message) so remediators such as **NHC** can decide **whether** to create a **`StorageBasedRemediation`**.
+- That condition context is **pre-remediation** signaling; it is **not** copied into this CR's **`spec`** and is **not** read again from the Node when the operator writes the fence message.
+- The operator writes a **fixed** SBD fence reason on the wire (`FENCE_REASON_MANUAL`); see `writeFenceMessage` in `pkg/controller/storagebasedremediation_controller.go`.
 
 ### Status Fields
 
@@ -87,7 +89,7 @@ kubectl get storagebasedremediation -o wide
 ### View Detailed Status
 
 ```bash
-kubectl describe storagebasedremediation fence-worker-1
+kubectl describe storagebasedremediation worker-1
 ```
 
 ### Common Issues

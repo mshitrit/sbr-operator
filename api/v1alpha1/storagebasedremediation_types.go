@@ -47,6 +47,12 @@ const (
 )
 
 // StorageBasedRemediationSpec defines the desired state of StorageBasedRemediation.
+// It is intentionally empty: the node to remediate is identified by metadata.name.
+//
+// Before a StorageBasedRemediation exists, the SBR agent may set the Node condition
+// SBRStorageUnhealthy (including condition reason/message) so remediators such as NHC
+// can decide whether to create this CR. That condition context is not carried in spec
+// and is not re-read from the Node when the operator writes the fence message.
 type StorageBasedRemediationSpec struct {
 }
 

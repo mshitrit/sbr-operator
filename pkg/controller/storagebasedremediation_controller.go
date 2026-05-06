@@ -427,7 +427,11 @@ func (r *SBRRemediationReconciler) markNodeAsSchedulable(ctx context.Context, no
 	return nil
 }
 
-// writeFenceMessage writes a fence message to the target node's slot in the SBR device
+// writeFenceMessage writes a fence message to the target node's slot in the SBR device.
+//
+// The SBD wire reason is fixed (FENCE_REASON_MANUAL). Node condition SBRStorageUnhealthy
+// (and its Kubernetes condition reason) exists for pre-remediation signaling to remediators
+// such as NHC; it is not consulted again here after the StorageBasedRemediation CR exists.
 func (r *SBRRemediationReconciler) writeFenceMessage(targetNodeID uint16, logger logr.Logger) error {
 	if r.fenceDevice == nil || r.fenceDevice.IsClosed() {
 		return fmt.Errorf("SBR device is not available")
