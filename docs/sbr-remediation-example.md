@@ -46,16 +46,13 @@ Fencing completion is monitored for a fixed duration (60 seconds, matching the f
 
 ### Status Fields
 
-- **phase**: Current state of the remediation
-  - `Pending`: Remediation queued for processing
-  - `WaitingForLeadership`: Waiting for operator to become leader
-  - `FencingInProgress`: Fence message being written to SBD device
-  - `FencedSuccessfully`: Node successfully fenced
-  - `Failed`: Remediation failed
-- **message**: Human-readable description of current state
-- **nodeID**: Numeric ID assigned to the target node
-- **fenceMessageWritten**: Whether fence message was successfully written
-- **operatorInstance**: Which operator instance handled the remediation
+Status is reported on **`status`** (not a single `phase` / `message` pair). Important fields:
+
+- **conditions**: Standard **`metav1.Condition`** entries (for example **`Ready`**, **`FencingSucceeded`**, **`FencingInProgress`**, **`LeadershipAcquired`**) with `status`, `reason`, `message`, and timestamps. Use `kubectl describe storagebasedremediation <name>` or `-o yaml` to inspect them.
+- **nodeID**: Numeric ID assigned to the target node for SBR operations
+- **fenceMessageWritten**: Whether the fence message was successfully written to the SBR device
+- **operatorInstance**: Which operator instance is handling this remediation
+- **lastUpdateTime**: When status was last updated
 
 ## Node Name to Node ID Mapping
 

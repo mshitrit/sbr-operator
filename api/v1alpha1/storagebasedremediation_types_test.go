@@ -554,4 +554,9 @@ func TestSBRRemediationConstants(t *testing.T) {
 				condType, expectedString, string(condType))
 		}
 	}
+
+	if SBRStorageUnhealthyReasonHeartbeatTimeout != "HeartbeatTimeout" {
+		t.Errorf("Expected SBRStorageUnhealthyReasonHeartbeatTimeout %q, got %q",
+			"HeartbeatTimeout", SBRStorageUnhealthyReasonHeartbeatTimeout)
+	}
 }

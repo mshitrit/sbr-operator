@@ -38,13 +38,10 @@ const (
 // NHC or other remediators watch this condition and create StorageBasedRemediation when True.
 const NodeConditionSBRStorageUnhealthy = "SBRStorageUnhealthy"
 
-// SBRRemediationReason represents the reason for the current remediation state
-type SBRRemediationReason string
-
-const (
-	// SBRRemediationReasonHeartbeatTimeout indicates the node stopped sending heartbeats
-	SBRRemediationReasonHeartbeatTimeout SBRRemediationReason = "HeartbeatTimeout"
-)
+// SBRStorageUnhealthyReasonHeartbeatTimeout is the Kubernetes Node condition.reason value
+// the SBR agent uses with condition type SBRStorageUnhealthy when a peer is unhealthy due to
+// heartbeat timeout (pre-remediation signaling for remediators such as NHC).
+const SBRStorageUnhealthyReasonHeartbeatTimeout = "HeartbeatTimeout"
 
 // StorageBasedRemediationSpec defines the desired state of StorageBasedRemediation.
 // It is intentionally empty: the node to remediate is identified by metadata.name.

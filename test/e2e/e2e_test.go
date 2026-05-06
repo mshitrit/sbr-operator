@@ -808,6 +808,7 @@ func testKubeletCommunicationFailure(cluster ClusterInfo) {
 			Name:      remediationName,
 			Namespace: testNamespace.Name,
 		},
+		Spec: medik8sv1alpha1.StorageBasedRemediationSpec{},
 	}
 	err = k8sClient.Create(ctx, sbrRemediation)
 	Expect(err).NotTo(HaveOccurred())
