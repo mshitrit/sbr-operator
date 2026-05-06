@@ -44,12 +44,6 @@ type SBRRemediationReason string
 const (
 	// SBRRemediationReasonHeartbeatTimeout indicates the node stopped sending heartbeats
 	SBRRemediationReasonHeartbeatTimeout SBRRemediationReason = "HeartbeatTimeout"
-	// SBRRemediationReasonNodeUnresponsive indicates the node is unresponsive
-	SBRRemediationReasonNodeUnresponsive SBRRemediationReason = "NodeUnresponsive"
-	// SBRRemediationReasonManualFencing indicates manual fencing was requested
-	SBRRemediationReasonManualFencing SBRRemediationReason = "ManualFencing"
-	// SBRRemediationReasonNone indicates no fencing is required
-	SBRRemediationReasonNone SBRRemediationReason = "None"
 )
 
 // StorageBasedRemediationSpec defines the desired state of StorageBasedRemediation.

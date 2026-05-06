@@ -554,18 +554,4 @@ func TestSBRRemediationConstants(t *testing.T) {
 				condType, expectedString, string(condType))
 		}
 	}
-
-	// Test reason constants
-	expectedReasons := map[SBRRemediationReason]string{
-		SBRRemediationReasonHeartbeatTimeout: "HeartbeatTimeout",
-		SBRRemediationReasonNodeUnresponsive: "NodeUnresponsive",
-		SBRRemediationReasonManualFencing:    "ManualFencing",
-	}
-
-	for reason, expectedString := range expectedReasons {
-		if string(reason) != expectedString {
-			t.Errorf("Expected reason %s to have string value %s, got %s",
-				reason, expectedString, string(reason))
-		}
-	}
 }
