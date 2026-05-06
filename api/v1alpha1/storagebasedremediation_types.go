@@ -54,10 +54,6 @@ const (
 
 // StorageBasedRemediationSpec defines the desired state of StorageBasedRemediation.
 type StorageBasedRemediationSpec struct {
-	// Reason specifies why this node needs to be fenced
-	// +kubebuilder:validation:Enum=HeartbeatTimeout;NodeUnresponsive;ManualFencing
-	// +kubebuilder:default=NodeUnresponsive
-	Reason SBRRemediationReason `json:"reason,omitempty"`
 }
 
 // StorageBasedRemediationStatus defines the observed state of StorageBasedRemediation.

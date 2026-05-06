@@ -109,9 +109,7 @@ var _ = Describe("StorageBasedRemediation Controller", func() {
 					Name:      testNodeName,
 					Namespace: "default",
 				},
-				Spec: medik8sv1alpha1.StorageBasedRemediationSpec{
-					Reason: medik8sv1alpha1.SBRRemediationReasonHeartbeatTimeout,
-				},
+				Spec: medik8sv1alpha1.StorageBasedRemediationSpec{},
 			}
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
@@ -137,9 +135,7 @@ var _ = Describe("StorageBasedRemediation Controller", func() {
 					Name:      testNodeName,
 					Namespace: "default",
 				},
-				Spec: medik8sv1alpha1.StorageBasedRemediationSpec{
-					Reason: medik8sv1alpha1.SBRRemediationReasonManualFencing,
-				},
+				Spec: medik8sv1alpha1.StorageBasedRemediationSpec{},
 			}
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
@@ -181,9 +177,7 @@ var _ = Describe("StorageBasedRemediation Controller", func() {
 						Name:      testNodeName,
 						Namespace: "default",
 					},
-					Spec: medik8sv1alpha1.StorageBasedRemediationSpec{
-						Reason: medik8sv1alpha1.SBRRemediationReasonNodeUnresponsive,
-					},
+					Spec: medik8sv1alpha1.StorageBasedRemediationSpec{},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
@@ -214,7 +208,6 @@ var _ = Describe("StorageBasedRemediation Controller", func() {
 				finalResource := &medik8sv1alpha1.StorageBasedRemediation{}
 				Expect(k8sClient.Get(ctx, types.NamespacedName{Name: testNodeName, Namespace: "default"}, finalResource)).To(Succeed())
 				Expect(finalResource.Name).To(Equal(testNodeName))
-				Expect(finalResource.Spec.Reason).To(Equal(medik8sv1alpha1.SBRRemediationReasonNodeUnresponsive))
 			})
 		})
 
@@ -227,9 +220,7 @@ var _ = Describe("StorageBasedRemediation Controller", func() {
 						Name:      testNodeName,
 						Namespace: "default",
 					},
-					Spec: medik8sv1alpha1.StorageBasedRemediationSpec{
-						Reason: medik8sv1alpha1.SBRRemediationReasonNodeUnresponsive,
-					},
+					Spec: medik8sv1alpha1.StorageBasedRemediationSpec{},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 
@@ -255,7 +246,6 @@ var _ = Describe("StorageBasedRemediation Controller", func() {
 				finalResource := &medik8sv1alpha1.StorageBasedRemediation{}
 				Expect(k8sClient.Get(ctx, types.NamespacedName{Name: testNodeName, Namespace: "default"}, finalResource)).To(Succeed())
 				Expect(finalResource.Name).To(Equal(testNodeName))
-				Expect(finalResource.Spec.Reason).To(Equal(medik8sv1alpha1.SBRRemediationReasonNodeUnresponsive))
 			})
 		})
 	})

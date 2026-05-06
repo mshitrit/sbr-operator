@@ -1550,9 +1550,7 @@ var _ = Describe("Fence flow with real SBR agent", func() {
 			By("Simulating NHC creating StorageBasedRemediation after observing the condition")
 			sbr := &medik8sv1alpha1.StorageBasedRemediation{
 				ObjectMeta: metav1.ObjectMeta{Name: fenceFlowTargetNode, Namespace: "default"},
-				Spec: medik8sv1alpha1.StorageBasedRemediationSpec{
-					Reason: medik8sv1alpha1.SBRRemediationReasonHeartbeatTimeout,
-				},
+				Spec:       medik8sv1alpha1.StorageBasedRemediationSpec{},
 			}
 			Expect(k8sClient.Create(ctx, sbr)).To(Succeed())
 
@@ -1572,12 +1570,12 @@ var _ = Describe("Fence flow with real SBR agent", func() {
 					if err != nil {
 						continue
 					}
-					if fenceMsg.Reason == sbdprotocol.FENCE_REASON_HEARTBEAT_TIMEOUT {
+					if fenceMsg.Reason == sbdprotocol.FENCE_REASON_MANUAL {
 						return true
 					}
 				}
 				return false
-			}, 15*time.Second, 500*time.Millisecond).Should(BeTrue(), "controller should write fence message with FENCE_REASON_HEARTBEAT_TIMEOUT")
+			}, 15*time.Second, 500*time.Millisecond).Should(BeTrue(), "controller should write fence message with FENCE_REASON_MANUAL")
 
 			By("Waiting for SBRStorageUnhealthy condition to become Unknown (stale age elapsed)")
 			Eventually(func(g Gomega) bool {
@@ -1744,9 +1742,7 @@ var _ = Describe("Fence flow with real SBR agent", func() {
 				By("Creating StorageBasedRemediation CR for this node now that SBR is healthy (so agent will trigger self-fence when unhealthy)")
 				sbr := &medik8sv1alpha1.StorageBasedRemediation{
 					ObjectMeta: metav1.ObjectMeta{Name: "worker-1", Namespace: controllerNamespace},
-					Spec: medik8sv1alpha1.StorageBasedRemediationSpec{
-						Reason: medik8sv1alpha1.SBRRemediationReasonHeartbeatTimeout,
-					},
+					Spec:       medik8sv1alpha1.StorageBasedRemediationSpec{},
 				}
 				Expect(k8sClient.Create(ctx, sbr)).To(Succeed())
 				DeferCleanup(func() { _ = k8sClient.Delete(ctx, sbr) })

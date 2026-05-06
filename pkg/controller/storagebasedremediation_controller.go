@@ -335,8 +335,7 @@ func (r *SBRRemediationReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	// Perform the actual fencing operation
 	logger.Info("Starting fencing operation",
-		"targetNode", nodeName,
-		"reason", sbrRemediation.Spec.Reason)
+		"targetNode", nodeName)
 
 	// Ensure the node is cordoned BEFORE setting FencingInProgress
 	node := &corev1.Node{}
@@ -388,11 +387,10 @@ func (r *SBRRemediationReconciler) executeFencing(
 
 	logger.Info("Writing fence message to SBR device",
 		"targetNode", targetNodeName,
-		"targetNodeID", targetNodeID,
-		"reason", remediation.Spec.Reason)
+		"targetNodeID", targetNodeID)
 
 	// Write fence message to target node's slot
-	if err := r.writeFenceMessage(targetNodeID, remediation.Spec.Reason, logger); err != nil {
+	if err := r.writeFenceMessage(targetNodeID, logger); err != nil {
 		return fmt.Errorf("failed to write fence message to target node %d: %w", targetNodeID, err)
 	}
 
@@ -430,26 +428,11 @@ func (r *SBRRemediationReconciler) markNodeAsSchedulable(ctx context.Context, no
 }
 
 // writeFenceMessage writes a fence message to the target node's slot in the SBR device
-func (r *SBRRemediationReconciler) writeFenceMessage(targetNodeID uint16,
-	reason medik8sv1alpha1.SBRRemediationReason, logger logr.Logger) error {
+func (r *SBRRemediationReconciler) writeFenceMessage(targetNodeID uint16, logger logr.Logger) error {
 	if r.fenceDevice == nil || r.fenceDevice.IsClosed() {
 		return fmt.Errorf("SBR device is not available")
 	}
-
-	// Create fence message
-	fenceReason := sbdprotocol.FENCE_REASON_NONE // Map from CR reason to SBD reason
-	switch reason {
-	case medik8sv1alpha1.SBRRemediationReasonNone:
-		fenceReason = sbdprotocol.FENCE_REASON_NONE
-	case medik8sv1alpha1.SBRRemediationReasonHeartbeatTimeout:
-		fenceReason = sbdprotocol.FENCE_REASON_HEARTBEAT_TIMEOUT
-	case medik8sv1alpha1.SBRRemediationReasonNodeUnresponsive:
-		fenceReason = sbdprotocol.FENCE_REASON_MANUAL
-	case medik8sv1alpha1.SBRRemediationReasonManualFencing:
-		fenceReason = sbdprotocol.FENCE_REASON_MANUAL
-	}
-
-	fenceMsg := sbdprotocol.NewFence(r.ownNodeID, targetNodeID, r.getNextSequence(), fenceReason)
+	fenceMsg := sbdprotocol.NewFence(r.ownNodeID, targetNodeID, r.getNextSequence(), sbdprotocol.FENCE_REASON_MANUAL)
 	msgData, err := sbdprotocol.MarshalFence(fenceMsg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal fence message: %w", err)
@@ -476,7 +459,6 @@ func (r *SBRRemediationReconciler) writeFenceMessage(targetNodeID uint16,
 	logger.Info("Fence message written successfully",
 		"targetNodeID", targetNodeID,
 		"sourceNodeID", r.ownNodeID,
-		"reason", fenceReason,
 		"slotOffset", slotOffset,
 		"messageSize", len(msgData))
 

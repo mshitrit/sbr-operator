@@ -47,15 +47,6 @@ spec:
                   spec:
                     description: StorageBasedRemediationSpec defines the desired state
                       of StorageBasedRemediation.
-                    properties:
-                      reason:
-                        default: NodeUnresponsive
-                        description: Reason specifies why this node needs to be fenced
-                        enum:
-                        - HeartbeatTimeout
-                        - NodeUnresponsive
-                        - ManualFencing
-                        type: string
                     type: object
                 required:
                 - spec
