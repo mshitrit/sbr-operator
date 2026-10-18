@@ -320,13 +320,14 @@ verify-setup-odf-storage: ## Verify setup-odf-storage binary was created under b
 .PHONY: run-setup-odf-storage
 run-setup-odf-storage: verify-setup-odf-storage require-odf-subscription-channel ## Run setup-odf-storage (requires ODF_SUBSCRIPTION_CHANNEL).
 	@echo "🚀 Running setup-odf-storage to set up storage..."
-	@./$(SETUP_ODF_STORAGE_BIN) --odf-operator-channel=$(ODF_SUBSCRIPTION_CHANNEL)
+	@./$(SETUP_ODF_STORAGE_BIN) --odf-operator-channel=$(ODF_SUBSCRIPTION_CHANNEL) --storage-size="512Gi" --replica-count=3 --resource-profile=lean
+
 
 .PHONY: run-setup-odf-storage-retry
 run-setup-odf-storage-retry: verify-setup-odf-storage require-odf-subscription-channel ## Run setup-odf-storage with retries (requires ODF_SUBSCRIPTION_CHANNEL).
 	@attempt=1; max=3; while [ $$attempt -le $$max ]; do \
 		echo "🚀 Running setup-odf-storage (attempt $$attempt of $$max)..."; \
-		./$(SETUP_ODF_STORAGE_BIN) --odf-operator-channel=$(ODF_SUBSCRIPTION_CHANNEL) && { echo "✅ setup-odf-storage succeeded"; exit 0; }; \
+		./$(SETUP_ODF_STORAGE_BIN) --odf-operator-channel=$(ODF_SUBSCRIPTION_CHANNEL) --resource-profile=lean && { echo "✅ setup-odf-storage succeeded"; exit 0; }; \
 		echo "❌ Attempt $$attempt failed"; \
 		if [ $$attempt -lt $$max ]; then \
 			echo "⏳ Waiting 60s before retry..."; \

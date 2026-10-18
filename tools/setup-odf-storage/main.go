@@ -24,6 +24,7 @@ type Config struct {
 	ReplicaCount           int
 	EnableEncryption       bool
 	EnableStorageDeviceSet bool
+	ResourceProfile        string
 
 	// AWS Integration
 	EnableAWSIntegration bool
@@ -95,6 +96,8 @@ func parseFlags() *Config {
 	flag.IntVar(&config.ReplicaCount, "replica-count", 3, "Number of storage replicas")
 	flag.BoolVar(&config.EnableEncryption, "enable-encryption", false, "Enable storage encryption")
 	flag.BoolVar(&config.EnableStorageDeviceSet, "enable-device-set", true, "Enable automatic storage device set creation")
+	flag.StringVar(&config.ResourceProfile, "resource-profile", "",
+		"StorageCluster resource profile for the Ceph daemons (lean, balanced, performance). Empty leaves ODF's default (balanced).")
 
 	// AWS Integration
 	flag.BoolVar(&config.EnableAWSIntegration, "enable-aws-integration", true, "Enable automatic AWS EBS volume provisioning")
@@ -136,6 +139,7 @@ func (c *Config) toODFConfig() *odf.Config {
 		ReplicaCount:           c.ReplicaCount,
 		EnableEncryption:       c.EnableEncryption,
 		EnableStorageDeviceSet: c.EnableStorageDeviceSet,
+		ResourceProfile:        c.ResourceProfile,
 		AggressiveCoherency:    c.AggressiveCoherency,
 		DryRun:                 c.DryRun,
 		UpdateMode:             c.UpdateMode,

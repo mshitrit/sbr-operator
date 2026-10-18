@@ -43,7 +43,10 @@ type Config struct {
 	ReplicaCount           int
 	EnableEncryption       bool
 	EnableStorageDeviceSet bool
-	AggressiveCoherency    bool
+	// ResourceProfile selects the StorageCluster's predefined Ceph daemon resource
+	// profile (lean, balanced, performance). Empty leaves ODF's default (balanced).
+	ResourceProfile     string
+	AggressiveCoherency bool
 	DryRun                 bool
 	UpdateMode             bool
 
@@ -558,6 +561,12 @@ func (m *Manager) createStorageCluster(ctx context.Context) error {
 		spec["encryption"] = map[string]interface{}{
 			"enable": true,
 		}
+	}
+
+	// Apply the requested resource profile, if any (lean, balanced, performance).
+	if m.config.ResourceProfile != "" {
+		spec := storageCluster.Object["spec"].(map[string]interface{})
+		spec["resourceProfile"] = m.config.ResourceProfile
 	}
 
 	_, err := m.dynamicClient.Resource(storageClusterGVR).Namespace(m.config.Namespace).Create(ctx,
